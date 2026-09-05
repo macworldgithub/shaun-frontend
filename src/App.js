@@ -18,7 +18,10 @@ import AdminUsers from './pages/admin/Users';
 import AdminAudit from './pages/admin/AuditLog';
 import AdminShareLinks from './pages/admin/ShareLinks';
 import AdminImports from './pages/admin/Imports';
+import AdminOffers from './pages/admin/Offers';
+import AdminInboundQueue from './pages/admin/InboundQueue';
 import SharedDashboard from './pages/SharedDashboard';
+import UploadPortal from './pages/UploadPortal';
 import { Toaster } from './components/ui/sonner';
 
 function App() {
@@ -29,6 +32,7 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/share/:token" element={<SharedDashboard />} />
+            <Route path="/upload/:token" element={<UploadPortal />} />
             <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
             <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -41,6 +45,8 @@ function App() {
               <Route path="/templates" element={<Templates />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/admin/users" element={<ProtectedRoute requireAdmin><AdminUsers /></ProtectedRoute>} />
+              <Route path="/admin/offers" element={<ProtectedRoute requireAdmin><AdminOffers /></ProtectedRoute>} />
+              <Route path="/admin/inbound-queue" element={<ProtectedRoute requireAdmin><AdminInboundQueue /></ProtectedRoute>} />
               <Route path="/admin/audit" element={<ProtectedRoute requireAdmin><AdminAudit /></ProtectedRoute>} />
               <Route path="/admin/share" element={<ProtectedRoute requireAdmin><AdminShareLinks /></ProtectedRoute>} />
               <Route path="/admin/imports" element={<ProtectedRoute requireAdmin><AdminImports /></ProtectedRoute>} />

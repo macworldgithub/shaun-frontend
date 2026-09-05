@@ -19,6 +19,8 @@ const mainNav = [
 ];
 
 const adminNav = [
+  { to: '/admin/offers', label: 'Offer Catalogue', icon: ScrollText },
+  { to: '/admin/inbound-queue', label: 'Inbound Queue', icon: FileText },
   { to: '/admin/users', label: 'Team & Access', icon: Shield },
   { to: '/admin/share', label: 'Share Links', icon: Share2 },
   { to: '/admin/imports', label: 'Data Imports', icon: UploadCloud },

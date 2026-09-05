@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarCheck, Truck, CheckCircle2, MessageSquareText, ArrowUpRight, AlertTriangle, UserPlus, Phone } from 'lucide-react';
+import { Truck, ArrowUpRight, AlertTriangle, UserPlus, Phone, FileWarning, BadgeAlert, ClipboardCheck, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
@@ -9,21 +9,25 @@ import { adminApi, clientsApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { stageClass, formatDate } from '../lib/utils';
 import { deliveryStages } from '../constants';
+import { toast } from 'sonner';
 
 export default function Dashboard() {
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
   const [upcoming, setUpcoming] = useState([]);
   const [needsAttention, setNeedsAttention] = useState({ arrivedPending: [], notContacted: [] });
+  const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshingOffers, setRefreshingOffers] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [s, list] = await Promise.all([adminApi.stats(), clientsApi.list({})]);
+        const [s, list, alertList] = await Promise.all([adminApi.stats(), clientsApi.list({}), clientsApi.alerts().catch(() => [])]);
         if (cancelled) return;
         setStats(s);
+        setAlerts(alertList);
         const upcoming = [...list]
           .filter((c) => c.stage !== 'Delivered')
           .sort((a, b) => (a.delivery_date || '').localeCompare(b.delivery_date || ''))
@@ -40,11 +44,25 @@ export default function Dashboard() {
     return () => { cancelled = true; };
   }, []);
 
+  const refreshOffers = async () => {
+    setRefreshingOffers(true);
+    try {
+      const snapshot = await clientsApi.fetchOfferSnapshot().catch(() => null);
+      await clientsApi.refreshOffers();
+      toast.success(snapshot?.changed ? 'Offer page changed; catalogue refreshed and deals re-scored' : 'Offer catalogue refreshed and open deals re-scored');
+    }
+    catch (e) { toast.error(e?.response?.data?.detail || 'Offer refresh failed'); }
+    finally { setRefreshingOffers(false); }
+  };
+
   const cards = useMemo(() => stats ? [
     { label: 'Total in pipeline', value: stats.total_clients - (stats.by_stage?.Delivered || 0), icon: Truck, accent: 'bg-blue-50 text-blue-600' },
     { label: 'Arrived · pending update', value: stats.arrived_pending, icon: AlertTriangle, accent: 'bg-amber-50 text-amber-700' },
     { label: 'Not contacted', value: stats.not_contacted, icon: Phone, accent: 'bg-rose-50 text-rose-600' },
     { label: 'Unassigned', value: stats.unassigned, icon: UserPlus, accent: 'bg-violet-50 text-violet-600' },
+    { label: 'Docs outstanding', value: stats.docs_outstanding, icon: FileWarning, accent: 'bg-orange-50 text-orange-700' },
+    { label: 'Offers / trades at risk', value: (stats.offers_at_risk || 0) + (stats.trade_ins_at_risk || 0), icon: BadgeAlert, accent: 'bg-red-50 text-red-700' },
+    { label: 'Ready to hand over', value: stats.ready_to_handover, icon: ClipboardCheck, accent: 'bg-emerald-50 text-emerald-700' },
   ] : [], [stats]);
 
   if (loading) return <DashboardSkeleton/>;
@@ -56,7 +74,10 @@ export default function Dashboard() {
           <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.name?.split(' ')[0]}</h1>
           <p className="text-neutral-500 mt-1">Live pipeline across BYD Melbourne &amp; Fairfield Delivery Centre.</p>
         </div>
-        <Link to="/deliveries"><Button variant="outline" className="gap-2">View pipeline <ArrowUpRight className="h-4 w-4"/></Button></Link>
+        <div className="flex gap-2">
+          <Button variant="outline" className="gap-2" onClick={refreshOffers} disabled={refreshingOffers}><RefreshCw className={`h-4 w-4 ${refreshingOffers ? 'animate-spin' : ''}`}/>Refresh offers</Button>
+          <Link to="/deliveries"><Button variant="outline" className="gap-2">View pipeline <ArrowUpRight className="h-4 w-4"/></Button></Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -143,6 +164,13 @@ export default function Dashboard() {
           items={needsAttention.notContacted}
         />
       </div>
+
+      {alerts.length > 0 && <Card className="border-amber-200 bg-amber-50/40">
+        <CardHeader className="pb-3"><CardTitle className="text-base font-semibold">BYD workflow alerts</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          {alerts.slice(0, 10).map((alert) => <Link key={alert.id} to={`/clients/${alert.client_id}`} className="flex items-center gap-3 rounded-md bg-white px-3 py-2 text-sm hover:bg-neutral-50"><AlertTriangle className={`h-4 w-4 ${alert.severity === 'danger' ? 'text-red-600' : 'text-amber-600'}`} /><span>{alert.message}</span></Link>)}
+        </CardContent>
+      </Card>}
     </div>
   );
 }

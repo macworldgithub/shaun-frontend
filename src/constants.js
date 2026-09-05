@@ -7,6 +7,52 @@ export const deliveryStages = [
   'Delivered',
 ];
 
+export const registrationStatuses = [
+  'Awaiting registration documents',
+  'Awaiting VIN',
+  'Ready to register',
+  'Partial',
+  'Complete',
+];
+
+export const handoverChecklistStatuses = [
+  'Not issued',
+  'Issued in VY',
+  'Signed copy on file',
+  'Exception',
+];
+
+export const tradeInStatuses = [
+  'Pending',
+  'Quoted',
+  'Accepted',
+  'Vehicle received',
+  'Settled',
+  'Valid',
+  'Expiring soon',
+  'Expiring',
+  'Expired',
+  'Cancelled',
+];
+
+export const saleTypes = ['Retail', 'Lease', 'Novated', 'Novated lease', 'Fleet', 'Government', 'Rental', 'Cash', 'Demo', 'Other'];
+
+export const documentTypes = [
+  'ATR signed',
+  'ATR incomplete',
+  'Licence front',
+  'Licence back',
+  'EFT form',
+  'Bank statement',
+  'Handover checklist',
+  'Other',
+];
+
+export const documentStatuses = ['requested', 'partial', 'complete', 're-requested'];
+export const activationStatuses = ['Blocked', 'Ready', 'Submitted to BYD', 'Active'];
+export const offerStatuses = ['Eligible', 'At risk', 'Ineligible'];
+export const yourWaySelections = ['Cashback', 'Accessories', 'Car care', 'Merchandise', 'Charging', 'Other'];
+
 export const contactStatuses = [
   'Not Contacted',
   'Contacted',

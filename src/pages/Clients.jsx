@@ -194,13 +194,20 @@ export default function Clients() {
                   </p>
                 </div>
                 <div className="md:col-span-2 text-sm">{formatDate(c.delivery_date)}</div>
-                <div className="md:col-span-2 flex flex-col gap-1">
+                <div className="md:col-span-2 flex flex-col gap-1 items-start">
                   <Badge className={`${stageClass(c.stage)} border-0 w-fit`}>{c.stage}</Badge>
                   {c.contact_status && (
                     <Badge className={`${contactBadge[c.contact_status] || 'bg-neutral-100'} border-0 w-fit text-[10px]`}>
                       {c.contact_status === 'Contacted' ? <CheckCircle2 className="h-3 w-3 mr-1"/> : <MessageSquare className="h-3 w-3 mr-1"/>}
                       {c.contact_status}
                     </Badge>
+                  )}
+                  {c.trade_in_attached && c.trade_in_valid_until && (
+                    (() => {
+                      const daysLeft = Math.ceil((new Date(`${c.trade_in_valid_until}T23:59:59`) - new Date()) / 86400000);
+                      if (daysLeft <= 0) return <Badge className="bg-red-100 text-red-700 border-0 text-[10px]">Trade-in expired</Badge>;
+                      return <Badge className={`${daysLeft <= 10 ? 'bg-amber-100 text-amber-700' : 'bg-neutral-100 text-neutral-600'} border-0 text-[10px]`}>Trade-in: {daysLeft}d</Badge>;
+                    })()
                   )}
                 </div>
                 <div className="md:col-span-2 text-sm text-neutral-600">

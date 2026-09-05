@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Phone, Mail, Car, Calendar, User, Send, MessageSquare, CheckCircle2, Circle, MapPin, AlertTriangle, Plus, X, Wrench } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, Car, Calendar, User, Send, MessageSquare, CheckCircle2, Circle, MapPin, AlertTriangle, Plus, X, Wrench, FileText, Download } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Separator } from '../components/ui/separator';
 import { Switch } from '../components/ui/switch';
 import { clientsApi, smsApi, templatesApi, adminApi } from '../lib/api';
-import { deliveryStages, contactStatuses, accessoryStatuses, checklistItems } from '../constants';
+import { deliveryStages, contactStatuses, accessoryStatuses, checklistItems, registrationStatuses, handoverChecklistStatuses, tradeInStatuses, saleTypes, documentTypes, documentStatuses, activationStatuses, offerStatuses, yourWaySelections } from '../constants';
 import { stageClass, formatDate, formatDateTime, renderTemplate } from '../lib/utils';
 import { toast } from 'sonner';
 
@@ -29,21 +29,30 @@ export default function ClientDetail() {
   const [comment, setComment] = useState('');
   const [accessoryName, setAccessoryName] = useState('');
   const [aftermarket, setAftermarket] = useState('');
+  const [documentType, setDocumentType] = useState('Handover checklist');
+  const [documentFileName, setDocumentFileName] = useState('');
+  const [documentFile, setDocumentFile] = useState(null);
+  const [offerMatches, setOfferMatches] = useState([]);
+  const [activationReason, setActivationReason] = useState('');
+  const [tradeInReason, setTradeInReason] = useState('');
+  const [uploadLink, setUploadLink] = useState('');
   const [checks, setChecks] = useState(() => {
     try { return JSON.parse(localStorage.getItem(`checks_${id}`)) || {}; } catch { return {}; }
   });
 
   const reload = useCallback(async () => {
-    const [c, m, t, u] = await Promise.all([
+    const [c, m, t, u, matches] = await Promise.all([
       clientsApi.get(id),
       smsApi.list({ client_id: id }),
       templatesApi.list(),
       adminApi.listUsers().catch(() => []),
+      clientsApi.offerMatches(id).catch(() => []),
     ]);
     setClient(c);
     setMessages(m);
     setTemplates(t);
     setAgents(u.filter((x) => x.active));
+    setOfferMatches(matches);
     setAftermarket(c.aftermarket_notes || '');
     setLoading(false);
   }, [id]);
@@ -127,6 +136,69 @@ export default function ClientDetail() {
     toast.success('Aftermarket notes saved');
   };
 
+  const addDocument = async () => {
+    try {
+      await clientsApi.addDocument(id, {
+        document_type: documentType,
+        file_name: documentFileName || undefined,
+        source: 'staff-upload',
+        status: 'requested',
+      });
+      setDocumentFileName('');
+      reload();
+      toast.success('Document added');
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Failed to add document'); }
+  };
+
+  const uploadDocument = async () => {
+    if (!documentFile) { toast.error('Choose a document first'); return; }
+    try {
+      await clientsApi.uploadDocument(id, documentFile, documentType);
+      setDocumentFile(null);
+      reload();
+      toast.success('Document uploaded and attached');
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Upload failed'); }
+  };
+
+  const generatePack = async () => {
+    try { await clientsApi.generatePack(id); reload(); toast.success('Document pack generated and filed'); }
+    catch (e) { toast.error(e?.response?.data?.detail || 'Pack generation failed'); }
+  };
+
+  const sendPack = async () => {
+    try { await clientsApi.sendPack(id); reload(); toast.success('Document pack emailed to the customer'); }
+    catch (e) { toast.error(e?.response?.data?.detail || 'Pack email failed'); }
+  };
+
+  const generateClaimPack = async () => {
+    try { await clientsApi.generateClaimPack(id); reload(); toast.success('Offer claim pack generated and filed'); }
+    catch (e) { toast.error(e?.response?.data?.detail || 'Claim pack generation failed'); }
+  };
+
+  const createUploadLink = async () => {
+    try {
+      const result = await clientsApi.createUploadLink(id);
+      setUploadLink(result.url);
+      await navigator.clipboard?.writeText(result.url);
+      toast.success('Customer upload link created and copied');
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Could not create upload link'); }
+  };
+
+  const updateDocument = async (documentId, data) => {
+    try { await clientsApi.updateDocument(id, documentId, data); reload(); }
+    catch (e) { toast.error(e?.response?.data?.detail || 'Failed to update document'); }
+  };
+
+  const downloadDocument = async (document) => {
+    try { await clientsApi.downloadDocument(id, document.id, document.file_name || 'document'); }
+    catch (e) { toast.error(e?.response?.data?.detail || 'Download failed'); }
+  };
+
+  const updateTradeInStatus = async (status) => {
+    try { await clientsApi.updateTradeIn(id, { trade_in_status: status, trade_in_manager_reason: tradeInReason || undefined }); reload(); }
+    catch (e) { toast.error(e?.response?.data?.detail || 'Trade-in update failed'); }
+  };
+
   const toggleCheck = (cid) => {
     const next = { ...checks, [cid]: !checks[cid] };
     setChecks(next);
@@ -134,6 +206,8 @@ export default function ClientDetail() {
   };
 
   const completedChecks = checklistItems.filter((c) => checks[c.id]).length;
+  const tradeInDaysLeft = client.trade_in_valid_until ? Math.ceil((new Date(`${client.trade_in_valid_until}T23:59:59`) - new Date()) / 86400000) : null;
+  const matchedOffers = offerMatches.filter((item) => item.eligible);
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -199,6 +273,159 @@ export default function ClientDetail() {
           <Box label="Delivery date">
             <Input type="date" defaultValue={client.delivery_date || ''} onBlur={(e) => e.target.value !== (client.delivery_date || '') && patch({ delivery_date: e.target.value })}/>
           </Box>
+        </CardContent>
+      </Card>
+
+      <Card className="border-neutral-200">
+        <CardHeader className="pb-3"><CardTitle className="text-base font-semibold">Registration & compliance</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <Box label="PO / INV">
+            <Input defaultValue={client.po_number || ''} onBlur={(e) => e.target.value !== (client.po_number || '') && patch({ po_number: e.target.value })} />
+          </Box>
+          <Box label="Payment method">
+            <Select value={client.payment_method || 'none'} onValueChange={(v) => patch({ payment_method: v === 'none' ? null : v })}>
+              <SelectTrigger className="h-9"><SelectValue placeholder="Not set" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Not set</SelectItem>
+                <SelectItem value="Cash">Cash / Transfer</SelectItem>
+                <SelectItem value="Finance">Finance</SelectItem>
+                <SelectItem value="Novated lease">Novated lease</SelectItem>
+                <SelectItem value="Other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </Box>
+          <Box label="Sale type">
+            <Select value={client.sale_type || 'Retail'} onValueChange={(v) => patch({ sale_type: v })}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>{saleTypes.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+            </Select>
+          </Box>
+          <Box label="Fleet / FMO company">
+            <Input defaultValue={client.fleet_company || ''} onBlur={(e) => e.target.value !== (client.fleet_company || '') && patch({ fleet_company: e.target.value })} />
+          </Box>
+          <Box label="Fleet reference">
+            <Input defaultValue={client.fleet_reference || ''} onBlur={(e) => e.target.value !== (client.fleet_reference || '') && patch({ fleet_reference: e.target.value })} />
+          </Box>
+          <Box label="Lease consultant">
+            <Input defaultValue={client.lease_consultant || ''} onBlur={(e) => e.target.value !== (client.lease_consultant || '') && patch({ lease_consultant: e.target.value })} />
+          </Box>
+          <Box label="Registered operator">
+            <Select value={client.registered_operator_type || 'Individual'} onValueChange={(v) => patch({ registered_operator_type: v })}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="Individual">Individual</SelectItem><SelectItem value="Company">Company</SelectItem></SelectContent>
+            </Select>
+          </Box>
+          <Box label="Registration status">
+            <Select value={client.registration_status || 'Awaiting registration documents'} onValueChange={(v) => patch({ registration_status: v })}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>{registrationStatuses.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+            </Select>
+          </Box>
+          <Box label="Trade-in flag">
+            <div className="flex items-center gap-2 h-9">
+              <Switch checked={Boolean(client.trade_in_flag)} onCheckedChange={(v) => patch({ trade_in_flag: v })} />
+              <span className="text-sm text-neutral-700">{client.trade_in_flag ? 'Yes' : 'No'}</span>
+            </div>
+          </Box>
+          <Box label="Trade-in attached">
+            <div className="flex items-center gap-2 h-9">
+              <Switch checked={Boolean(client.trade_in_attached)} onCheckedChange={(v) => patch({ trade_in_attached: v })} />
+              <span className="text-sm text-neutral-700">{client.trade_in_attached ? 'Yes' : 'No'}</span>
+            </div>
+          </Box>
+          <Box label="Trade-in sale date">
+            <Input type="date" defaultValue={client.trade_in_sale_date || ''} onBlur={(e) => e.target.value !== (client.trade_in_sale_date || '') && patch({ trade_in_sale_date: e.target.value })} />
+          </Box>
+          <Box label="Trade-in valid until">
+            <Input type="date" defaultValue={client.trade_in_valid_until || ''} onBlur={(e) => e.target.value !== (client.trade_in_valid_until || '') && patch({ trade_in_valid_until: e.target.value })} />
+            {client.trade_in_attached && client.trade_in_valid_until && <p className={`text-[10px] mt-1 ${tradeInDaysLeft <= 0 ? 'text-red-600' : tradeInDaysLeft <= 10 ? 'text-amber-700' : 'text-neutral-500'}`}>{tradeInDaysLeft <= 0 ? 'Trade-in expired' : `Trade-in valid for ${tradeInDaysLeft} day${tradeInDaysLeft === 1 ? '' : 's'}`}</p>}
+          </Box>
+          <Box label="Trade-in status">
+            <Select value={client.trade_in_status || 'Pending'} onValueChange={updateTradeInStatus}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>{tradeInStatuses.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+            </Select>
+          </Box>
+          <Box label="Trade-in manager reason">
+            <Input value={tradeInReason} onChange={(e) => setTradeInReason(e.target.value)} placeholder="Required for expired settlement" />
+          </Box>
+          <Box label="Handover checklist">
+            <Select value={client.handover_checklist_status || 'Not issued'} onValueChange={(v) => patch({ handover_checklist_status: v })}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>{handoverChecklistStatuses.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+            </Select>
+          </Box>
+          <Box label="Activation status">
+            <Select value={client.activation_status || 'Blocked'} onValueChange={async (v) => {
+              try { await clientsApi.updateActivation(id, { activation_status: v, activation_override_reason: activationReason || undefined }); reload(); }
+              catch (e) { toast.error(e?.response?.data?.detail || 'Activation update failed'); }
+            }}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>{activationStatuses.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+            </Select>
+          </Box>
+          <Box label="Activation override reason">
+            <Input value={activationReason} onChange={(e) => setActivationReason(e.target.value)} placeholder="Manager reason if checklist evidence is unavailable" />
+          </Box>
+          <Box label="Offer status">
+            <Select value={client.offer_status || 'Eligible'} onValueChange={async (v) => {
+              try { await clientsApi.updateOfferStatus(id, { offer_status: v }); reload(); }
+              catch (e) { toast.error(e?.response?.data?.detail || 'Offer update failed'); }
+            }}>
+              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectContent>{offerStatuses.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+            </Select>
+          </Box>
+          <Box label="Linked offer">
+            <Select value={client.linked_offer_ids?.[0] || 'none'} onValueChange={(v) => patch({ linked_offer_ids: v === 'none' ? [] : [v] })}>
+              <SelectTrigger className="h-9"><SelectValue placeholder="Select offer" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {matchedOffers.map(({ offer }) => <SelectItem key={offer.id} value={offer.id}>{offer.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {matchedOffers.length === 0 && <p className="text-[10px] text-amber-700 mt-1">No currently eligible catalogue offer.</p>}
+          </Box>
+          <Box label="Your Way selection">
+            <Select value={client.your_way_selection || 'none'} onValueChange={(v) => patch({ your_way_selection: v === 'none' ? null : v })}>
+              <SelectTrigger className="h-9"><SelectValue placeholder="Not selected" /></SelectTrigger>
+              <SelectContent><SelectItem value="none">Not selected</SelectItem>{yourWaySelections.map((choice) => <SelectItem key={choice} value={choice}>{choice}</SelectItem>)}</SelectContent>
+            </Select>
+          </Box>
+        </CardContent>
+      </Card>
+
+      <Card className="border-neutral-200">
+        <CardHeader className="pb-3 flex flex-row items-center justify-between"><CardTitle className="text-base font-semibold flex items-center gap-2"><FileText className="h-4 w-4"/> Registration documents</CardTitle><div className="flex gap-2 flex-wrap"><Button onClick={generatePack} variant="outline" size="sm"><FileText className="h-4 w-4 mr-1"/>Generate pack</Button><Button onClick={generateClaimPack} variant="outline" size="sm"><FileText className="h-4 w-4 mr-1"/>Claim pack</Button><Button onClick={sendPack} variant="outline" size="sm"><Send className="h-4 w-4 mr-1"/>Email pack</Button><Button onClick={createUploadLink} variant="outline" size="sm"><FileText className="h-4 w-4 mr-1"/>Customer upload link</Button></div></CardHeader>
+        <CardContent className="space-y-3">
+          {uploadLink && <p className="break-all rounded-md bg-neutral-50 border border-neutral-200 px-3 py-2 text-xs text-neutral-600">Upload link: {uploadLink}</p>}
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-2">
+            <Select value={documentType} onValueChange={setDocumentType}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{documentTypes.map((type) => <SelectItem key={type} value={type}>{type}</SelectItem>)}</SelectContent>
+            </Select>
+            <Input placeholder="Returned file name (optional)" value={documentFileName} onChange={(e) => setDocumentFileName(e.target.value)} />
+            <Button onClick={addDocument} variant="outline"><Plus className="h-4 w-4 mr-1"/>Add document</Button>
+          </div>
+          <div className="flex flex-wrap gap-2 items-center">
+            <Input type="file" className="max-w-md" onChange={(e) => setDocumentFile(e.target.files?.[0] || null)} />
+            <Button onClick={uploadDocument} variant="outline"><FileText className="h-4 w-4 mr-1"/>Upload and attach</Button>
+          </div>
+          {(client.documents || []).length === 0 ? <p className="text-sm text-neutral-500">No registration documents tracked yet.</p> : (
+            <div className="divide-y divide-neutral-100 rounded-lg border border-neutral-200">
+              {client.documents.map((document) => (
+                <div key={document.id} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center px-3 py-2.5">
+                  <div className="text-sm"><p className="font-medium">{document.document_type}</p><p className="text-xs text-neutral-500">{document.file_name || 'No file returned'}</p></div>
+                  <Select value={document.status} onValueChange={(v) => updateDocument(document.id, { status: v })}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>{documentStatuses.map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <Input className="h-8 text-xs" placeholder="Notes" defaultValue={document.notes || ''} onBlur={(e) => e.target.value !== (document.notes || '') && updateDocument(document.id, { notes: e.target.value })} />
+                  {document.storage_path && <Button variant="ghost" size="icon" title="Download document" onClick={() => downloadDocument(document)}><Download className="h-4 w-4"/></Button>}
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
