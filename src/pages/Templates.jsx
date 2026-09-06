@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogT
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { templatesApi } from '../lib/api';
 import { toast } from 'sonner';
+import PaginationControls from '../components/PaginationControls';
 
 const categories = ['Welcome', 'Reminder', 'Status', 'Follow-up', 'Internal'];
 const empty = { name: '', body: '', category: 'Welcome' };
@@ -19,9 +20,13 @@ export default function Templates() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(empty);
+  const [page, setPage] = useState(1);
+  const pageSize = 12;
 
   const reload = useCallback(async () => setList(await templatesApi.list()), []);
   useEffect(() => { reload(); }, [reload]);
+
+  const pagedTemplates = list.slice((page - 1) * pageSize, page * pageSize);
 
   const openNew = () => { setEditing(null); setForm(empty); setOpen(true); };
   const openEdit = (t) => { setEditing(t.id); setForm({ name: t.name, body: t.body, category: t.category }); setOpen(true); };
@@ -79,7 +84,7 @@ export default function Templates() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {list.map((t) => (
+        {pagedTemplates.map((t) => (
           <Card key={t.id} className="border-neutral-200 hover:shadow-md transition-shadow">
             <CardHeader className="pb-2 flex flex-row items-start justify-between">
               <div>
@@ -97,6 +102,13 @@ export default function Templates() {
           </Card>
         ))}
       </div>
+      <PaginationControls
+        page={page}
+        pageCount={Math.ceil(list.length / pageSize)}
+        total={list.length}
+        pageSize={pageSize}
+        onPageChange={setPage}
+      />
     </div>
   );
 }

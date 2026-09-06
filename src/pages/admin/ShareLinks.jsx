@@ -9,15 +9,20 @@ import { Plus, Copy, Eye, Trash2, ExternalLink, Mail, ChevronRight } from 'lucid
 import { shareApi } from '../../lib/api';
 import { formatDateTime } from '../../lib/utils';
 import { toast } from 'sonner';
+import PaginationControls from '../../components/PaginationControls';
 
 export default function AdminShareLinks() {
   const [links, setLinks] = useState([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ label: '', allowed_emails: '', expires_in_hours: '' });
   const [activeViews, setActiveViews] = useState(null); // {link, views}
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const reload = useCallback(async () => setLinks(await shareApi.list()), []);
   useEffect(() => { reload(); }, [reload]);
+
+  const pagedLinks = links.slice((page - 1) * pageSize, page * pageSize);
 
   const buildUrl = (token) => `${window.location.origin}/share/${token}`;
 
@@ -84,7 +89,7 @@ export default function AdminShareLinks() {
       <Card className="border-neutral-200">
         <div className="divide-y divide-neutral-100">
           {links.length === 0 && <p className="px-6 py-8 text-sm text-neutral-500 text-center">No share links yet.</p>}
-          {links.map((l) => (
+          {pagedLinks.map((l) => (
             <div key={l.id} className="px-6 py-4 flex items-center gap-4 flex-wrap">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -110,6 +115,13 @@ export default function AdminShareLinks() {
             </div>
           ))}
         </div>
+        <PaginationControls
+          page={page}
+          pageCount={Math.ceil(links.length / pageSize)}
+          total={links.length}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </Card>
 
       <Dialog open={!!activeViews} onOpenChange={(v) => !v && setActiveViews(null)}>

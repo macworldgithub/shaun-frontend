@@ -11,6 +11,7 @@ import { Switch } from "../../components/ui/switch";
 import { offersApi } from "../../lib/api";
 import { toast } from "sonner";
 import { formatDate } from "../../lib/utils";
+import PaginationControls from "../../components/PaginationControls";
 
 const BYD_MODELS = ["ATTO 1","ATTO 2","ATTO 3","DOLPHIN","SEAL","SEALION 6","SEALION 7","SEALION 8","SHARK 6"];
 const SALE_TYPE_OPTIONS = ["Retail","Novated","Novated lease","Fleet","Government","Rental","Demo","Cash","Lease","Other"];
@@ -31,6 +32,8 @@ export default function Offers() {
   const [refreshing, setRefreshing] = useState(false);
   const [snapping, setSnapping] = useState(false);
   const [expanded, setExpanded] = useState({});
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const reload = useCallback(async () => {
     try { const data = await offersApi.list(); setOffers(data); }
@@ -39,6 +42,8 @@ export default function Offers() {
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
+
+  const pagedOffers = offers.slice((page - 1) * pageSize, page * pageSize);
 
   const toggleExpand = (id) => setExpanded((p) => ({ ...p, [id]: !p[id] }));
 
@@ -181,16 +186,25 @@ export default function Offers() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {offers.map((offer) => {
+        <>
+          <div className="space-y-3">
+          {pagedOffers.map((offer) => {
             const isExpanded = expanded[offer.id];
             return (
               <Card key={offer.id} className={"border-neutral-200 " + (!offer.active ? "opacity-60" : "")}>
                 <CardContent className="p-0">
                   <div className="flex items-start gap-4 px-5 py-4">
+                    {offer.image_url && (
+                      <img
+                        src={offer.image_url}
+                        alt={offer.model_variant || offer.name}
+                        className="h-16 w-24 shrink-0 rounded-md object-cover border border-neutral-200"
+                      />
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-sm">{offer.name}</p>
+                        {offer.display_value && <Badge className="bg-neutral-900 text-white border-0 text-[10px]">{offer.display_value} {offer.display_unit}</Badge>}
                         {!offer.active && <Badge className="bg-neutral-100 text-neutral-500 border-0 text-[10px]">Expired</Badge>}
                         {offer.cash_or_product === "both" && <Badge className="bg-purple-100 text-purple-700 border-0 text-[10px]">Your Way</Badge>}
                         {offer.cash_or_product === "cash" && <Badge className="bg-emerald-100 text-emerald-700 border-0 text-[10px]">Cashback</Badge>}
@@ -198,6 +212,9 @@ export default function Offers() {
                         {offer.honour_if_delayed && <Badge className="bg-blue-100 text-blue-700 border-0 text-[10px]">Honour if delayed</Badge>}
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-neutral-500">
+                        {offer.model_variant && <span>Variant: {offer.model_variant}</span>}
+                        {offer.body_style && <span>Body: {offer.body_style}</span>}
+                        {offer.powertrain && <span>Powertrain: {offer.powertrain}</span>}
                         {offer.order_from && <span>Order: {formatDate(offer.order_from)} &ndash; {formatDate(offer.order_to)}</span>}
                         {offer.deliver_by && <span>Deliver by: {formatDate(offer.deliver_by)}</span>}
                         {offer.eligible_models?.length > 0 && <span>Models: {offer.eligible_models.join(", ")}</span>}
@@ -225,6 +242,8 @@ export default function Offers() {
                       <D label="Honour if delayed" value={offer.honour_if_delayed ? "Yes" : "No"} />
                       <D label="Combinable" value={offer.combinable !== false ? "Yes" : "No"} />
                       <D label="Cash / product election" value={offer.cash_or_product} />
+                      <D label="Display value" value={[offer.display_value, offer.display_unit].filter(Boolean).join(" ") || "Not specified"} />
+                      <D label="Configurator" value={offer.configurator_url || "Not specified"} />
                       <D label="Last refreshed" value={offer.last_refreshed_at ? formatDate(offer.last_refreshed_at) : "Never"} />
                       <D label="Created" value={formatDate(offer.created_at)} />
                       {offer.internal_notes && (
@@ -239,7 +258,15 @@ export default function Offers() {
               </Card>
             );
           })}
-        </div>
+          </div>
+          <PaginationControls
+            page={page}
+            pageCount={Math.ceil(offers.length / pageSize)}
+            total={offers.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+          />
+        </>
       )}
     </div>
   );

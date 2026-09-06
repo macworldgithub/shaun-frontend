@@ -3,6 +3,19 @@
   background: #ffffff;
 }
 
+html, body, #root {
+  min-width: 320px;
+  min-height: 100%;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+img, svg, video, canvas {
+  max-width: 100%;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 10px;

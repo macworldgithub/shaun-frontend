@@ -8,6 +8,7 @@ import { Button } from '../components/ui/button';
 import { clientsApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { stageClass, formatDate } from '../lib/utils';
+import PaginationControls from '../components/PaginationControls';
 
 export default function MyClients() {
   const { user } = useAuth();
@@ -56,13 +57,18 @@ export default function MyClients() {
 }
 
 function ClientGroup({ loading, clients, empty, onClaim }) {
+  const [page, setPage] = useState(1);
+  const pageSize = 12;
+  useEffect(() => { setPage(1); }, [clients.length]);
+
   if (loading) return <p className="text-sm text-neutral-500">Loading…</p>;
   if (clients.length === 0) return (
     <Card className="border-neutral-200"><CardContent className="py-12 text-center text-sm text-neutral-500"><Inbox className="h-8 w-8 mx-auto mb-2 text-neutral-300"/>{empty}</CardContent></Card>
   );
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-      {clients.map((c) => {
+    <>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      {clients.slice((page - 1) * pageSize, page * pageSize).map((c) => {
         const arrivedPending = c.arrived && c.stage !== 'Delivered';
         return (
           <Card key={c.id} className={`border ${arrivedPending ? 'border-amber-300 bg-amber-50/40' : 'border-neutral-200'} hover:shadow-md transition-shadow`}>
@@ -92,6 +98,14 @@ function ClientGroup({ loading, clients, empty, onClaim }) {
           </Card>
         );
       })}
-    </div>
+      </div>
+      <PaginationControls
+        page={page}
+        pageCount={Math.ceil(clients.length / pageSize)}
+        total={clients.length}
+        pageSize={pageSize}
+        onPageChange={setPage}
+      />
+    </>
   );
 }

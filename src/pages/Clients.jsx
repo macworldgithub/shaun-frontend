@@ -15,6 +15,7 @@ import { deliveryStages, contactStatuses } from '../constants';
 import { stageClass, formatDate } from '../lib/utils';
 import { toast } from 'sonner';
 import ImportFromVYDialog from '../components/ImportFromVYDialog';
+import PaginationControls from '../components/PaginationControls';
 
 const empty = { name: '', phone: '', email: '', vehicle: '', rego: '', vin: '', delivery_date: '', stage: 'Scheduled', salesperson: '', notes: '', location: '', address: '' };
 
@@ -39,6 +40,8 @@ export default function Clients() {
   const [importOpen, setImportOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
 
   const reload = useCallback(async () => {
     const list = await clientsApi.list({});
@@ -72,6 +75,13 @@ export default function Clients() {
     agents.forEach((a) => { m[a.id] = a.name; });
     return m;
   }, [agents]);
+
+  useEffect(() => { setPage(1); }, [search, stageFilter, contactFilter, agentFilter]);
+
+  const pagedClients = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page],
+  );
 
   const handleSave = async () => {
     if (!form.name || !form.phone || !form.vehicle) { toast.error('Name, phone and vehicle are required'); return; }
@@ -173,7 +183,7 @@ export default function Clients() {
           {!loading && filtered.length === 0 && (
             <div className="px-6 py-12 text-center text-neutral-500 text-sm">No clients match your filters.</div>
           )}
-          {filtered.map((c) => {
+          {pagedClients.map((c) => {
             const arrivedPending = c.arrived && c.stage !== 'Delivered';
             return (
               <div key={c.id} onClick={() => navigate(`/clients/${c.id}`)} className={`grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-0 px-6 py-4 items-center hover:bg-neutral-50 cursor-pointer ${arrivedPending ? 'bg-amber-50/40 hover:bg-amber-50/60' : ''}`}>
@@ -217,6 +227,13 @@ export default function Clients() {
             );
           })}
         </div>
+        <PaginationControls
+          page={page}
+          pageCount={Math.ceil(filtered.length / pageSize)}
+          total={filtered.length}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </Card>
     </div>
   );

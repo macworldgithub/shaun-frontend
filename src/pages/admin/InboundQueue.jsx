@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { inboundQueueApi, clientsApi } from '../../lib/api';
 import { documentTypes } from '../../constants';
 import { toast } from 'sonner';
+import PaginationControls from '../../components/PaginationControls';
 
 export default function InboundQueue() {
   const [items, setItems] = useState([]);
@@ -19,6 +20,8 @@ export default function InboundQueue() {
   const [clientSearch, setClientSearch] = useState('');
   const [clientResults, setClientResults] = useState([]);
   const [searching, setSearching] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageSize = 15;
 
   const reload = useCallback(async () => {
     try {
@@ -32,6 +35,8 @@ export default function InboundQueue() {
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
+
+  const pagedItems = items.slice((page - 1) * pageSize, page * pageSize);
 
   useEffect(() => {
     if (!clientSearch || clientSearch.length < 2) {
@@ -158,7 +163,7 @@ export default function InboundQueue() {
       </Dialog>
 
       <Card className="border-neutral-200">
-        <div className="grid grid-cols-12 px-6 py-3 bg-neutral-50 border-b border-neutral-200 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+        <div className="hidden md:grid grid-cols-12 px-6 py-3 bg-neutral-50 border-b border-neutral-200 text-xs font-semibold uppercase tracking-wide text-neutral-500">
           <div className="col-span-4">Source / Sender</div>
           <div className="col-span-4">Document Details</div>
           <div className="col-span-2">Time Open</div>
@@ -174,9 +179,9 @@ export default function InboundQueue() {
               <p className="text-xs text-neutral-500 mt-1">All inbound documents have been matched.</p>
             </div>
           ) : (
-            items.map(item => (
-              <div key={item.id} className="grid grid-cols-12 px-6 py-4 items-center hover:bg-neutral-50">
-                <div className="col-span-4">
+            pagedItems.map(item => (
+              <div key={item.id} className="grid grid-cols-1 md:grid-cols-12 gap-3 md:gap-0 px-4 sm:px-6 py-4 items-start md:items-center hover:bg-neutral-50">
+                <div className="md:col-span-4 min-w-0">
                   <div className="flex items-center gap-2">
                     <Mail className="h-4 w-4 text-neutral-400" />
                     <span className="text-sm font-medium truncate" title={item.meta?.sender}>{item.meta?.sender || 'Portal Upload'}</span>
@@ -192,7 +197,7 @@ export default function InboundQueue() {
                   )}
                 </div>
                 
-                <div className="col-span-4">
+                <div className="md:col-span-4 min-w-0">
                   <div className="flex items-center gap-2">
                     <FileText className="h-4 w-4 text-blue-500" />
                     <span className="text-sm font-medium">{item.meta?.file_name}</span>
@@ -200,7 +205,7 @@ export default function InboundQueue() {
                   <p className="text-xs text-neutral-500 mt-1">Classified as: {item.meta?.classification || 'Unknown'}</p>
                 </div>
 
-                <div className="col-span-2">
+                <div className="md:col-span-2">
                   <div className={`flex items-center gap-1.5 ${item.sla_breached ? 'text-red-600 font-semibold' : 'text-neutral-600'}`}>
                     <Clock className="h-4 w-4" />
                     <span className="text-sm">{item.hours_open !== null ? `${item.hours_open}h` : 'Unknown'}</span>
@@ -212,13 +217,20 @@ export default function InboundQueue() {
                   )}
                 </div>
 
-                <div className="col-span-2 text-right">
-                  <Button variant="outline" size="sm" onClick={() => startResolve(item)}>Match</Button>
+                <div className="md:col-span-2 md:text-right">
+                  <Button variant="outline" size="sm" className="w-full md:w-auto" onClick={() => startResolve(item)}>Match</Button>
                 </div>
               </div>
             ))
           )}
         </div>
+        <PaginationControls
+          page={page}
+          pageCount={Math.ceil(items.length / pageSize)}
+          total={items.length}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </Card>
     </div>
   );

@@ -11,6 +11,7 @@ import { adminApi } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatDateTime } from '../../lib/utils';
 import { toast } from 'sonner';
+import PaginationControls from '../../components/PaginationControls';
 
 export default function AdminUsers() {
   const { isSuper } = useAuth();
@@ -18,9 +19,13 @@ export default function AdminUsers() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ email: '', name: '', role: 'agent' });
   const [tempPw, setTempPw] = useState(null); // { user, password }
+  const [page, setPage] = useState(1);
+  const pageSize = 15;
 
   const reload = useCallback(async () => setUsers(await adminApi.listUsers()), []);
   useEffect(() => { reload(); }, [reload]);
+
+  const pagedUsers = users.slice((page - 1) * pageSize, page * pageSize);
 
   const create = async () => {
     if (!form.email || !form.name) { toast.error('Email and name required'); return; }
@@ -101,7 +106,7 @@ export default function AdminUsers() {
             <div className="col-span-2">Last login</div>
             <div className="col-span-2 text-right">Actions</div>
           </div>
-          {users.map((u) => (
+          {pagedUsers.map((u) => (
             <div key={u.id} className="grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-0 px-6 py-3 items-center">
               <div className="md:col-span-4">
                 <p className="text-sm font-semibold">{u.name}</p>
@@ -125,6 +130,13 @@ export default function AdminUsers() {
             </div>
           ))}
         </div>
+        <PaginationControls
+          page={page}
+          pageCount={Math.ceil(users.length / pageSize)}
+          total={users.length}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
       </Card>
 
       <Dialog open={!!tempPw} onOpenChange={(v) => !v && setTempPw(null)}>
