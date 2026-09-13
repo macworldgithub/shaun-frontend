@@ -121,6 +121,16 @@ export default function ClientDetail() {
     } catch (e) { toast.error('Failed'); }
   };
 
+  const syncInventory = async () => {
+    try {
+      await clientsApi.syncInventory(id);
+      reload();
+      toast.success('Inventory synced from VY');
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || 'Inventory sync failed');
+    }
+  };
+
   const updateAccessory = async (aid, data) => {
     try { await clientsApi.updateAccessory(id, aid, data); reload(); }
     catch (e) { toast.error('Failed'); }
