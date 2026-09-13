@@ -44,6 +44,7 @@ export const clientsApi = {
   addComment: (id, body) => api.post(`/clients/${id}/comments`, { body }).then((r) => r.data),
   removeComment: (id, cid) => api.delete(`/clients/${id}/comments/${cid}`).then((r) => r.data),
   addAccessory: (id, data) => api.post(`/clients/${id}/accessories`, data).then((r) => r.data),
+  syncInventory: (id) => api.post(`/clients/${id}/sync-inventory`).then((r) => r.data),
   updateAccessory: (id, aid, data) => api.patch(`/clients/${id}/accessories/${aid}`, data).then((r) => r.data),
   removeAccessory: (id, aid) => api.delete(`/clients/${id}/accessories/${aid}`).then((r) => r.data),
   listDocuments: (id) => api.get(`/clients/${id}/documents`).then((r) => r.data),

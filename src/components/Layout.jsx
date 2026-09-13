@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Truck, MessageSquare, FileText, Settings as SettingsIcon, Search, LogOut, UserCircle2, Shield, ScrollText, Share2, ChevronDown, UserCheck, UploadCloud, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Users, Truck, MessageSquare, FileText, Settings as SettingsIcon, Search, LogOut, UserCircle2, Shield, ScrollText, Share2, ChevronDown, UserCheck, UploadCloud, Menu, X, MapPin, Users2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from './ui/dropdown-menu';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { Badge } from './ui/badge';
 import { cn } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
+import { siteLocations, teamProfiles } from '../constants';
 
 const mainNav = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -31,9 +34,18 @@ export default function Layout() {
   const navigate = useNavigate();
   const { user, isAdmin, logout } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [activeSite, setActiveSite] = useState(() => localStorage.getItem('active_site') || 'Fairfield');
+  const [activeTeam, setActiveTeam] = useState(() => localStorage.getItem('active_team') || 'All Teams');
+
+  useEffect(() => {
+    localStorage.setItem('active_site', activeSite);
+  }, [activeSite]);
+
+  useEffect(() => {
+    localStorage.setItem('active_team', activeTeam);
+  }, [activeTeam]);
 
   const initials = (user?.name || 'U').split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
-
   const closeMobileNav = () => setMobileNavOpen(false);
 
   return (
@@ -53,10 +65,10 @@ export default function Layout() {
         <div className="px-5 py-4 border-b border-neutral-200">
           <div className="flex items-center gap-3">
             <img src="/delivery-centre-logo.svg" alt="Delivery Centre" className="h-10 w-10" />
-            <div className="leading-tight">
+            <div className="leading-tight min-w-0">
               <p className="text-[10px] font-bold tracking-[0.18em] text-[#E11B22]">DELIVERY CENTRE</p>
-              <p className="font-bold text-[15px] tracking-tight text-neutral-900">BYD Melbourne</p>
-              <p className="font-semibold text-[12px] text-neutral-500">&amp; Fairfield</p>
+              <p className="font-bold text-[15px] tracking-tight text-neutral-900 truncate">BYD {activeSite}</p>
+              <p className="font-semibold text-[11px] text-neutral-500">{activeTeam}</p>
             </div>
             <Button variant="ghost" size="icon" className="ml-auto md:hidden" aria-label="Close navigation" onClick={closeMobileNav}>
               <X className="h-5 w-5" />
@@ -110,7 +122,7 @@ export default function Layout() {
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate">{user?.name}</p>
-                  <p className="text-xs text-neutral-500 truncate capitalize">{user?.role?.replace('_', ' ')}</p>
+                  <p className="text-xs text-neutral-500 truncate capitalize">{user?.role?.replace('_', ' ')} · {activeTeam}</p>
                 </div>
                 <ChevronDown className="h-4 w-4 text-neutral-400" />
               </button>
@@ -130,23 +142,56 @@ export default function Layout() {
       </aside>
 
       <div className="min-h-screen flex flex-col min-w-0 md:ml-72">
-        <header className="min-h-16 bg-white border-b border-neutral-200 flex items-center px-4 sm:px-6 py-3 gap-3 sticky top-0 z-30">
+        <header className="min-h-16 bg-white border-b border-neutral-200 flex items-center px-4 sm:px-6 py-3 gap-3 sticky top-0 z-30 flex-wrap sm:flex-nowrap">
           <Button variant="ghost" size="icon" className="md:hidden shrink-0" aria-label="Open navigation" onClick={() => setMobileNavOpen(true)}>
             <Menu className="h-5 w-5" />
           </Button>
-          <div className="relative flex-1 min-w-0 max-w-md">
+
+          <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-            <Input placeholder="Search clients, vehicles, messages..." className="pl-9 h-10 bg-neutral-50 border-neutral-200" />
+            <Input placeholder="Search clients, vehicles, messages..." className="pl-9 h-9 bg-neutral-50 border-neutral-200 text-xs" />
           </div>
-          <Button onClick={() => navigate('/clients?new=1')} className="bg-[#E11B22] hover:bg-[#B81319] text-white shadow-sm shrink-0 px-3 sm:px-4">
-            <span className="hidden sm:inline">New Delivery</span>
-            <span className="sm:hidden">New</span>
-          </Button>
+
+          <div className="flex items-center gap-2 ml-auto shrink-0">
+            {/* Site selector */}
+            <div className="flex items-center gap-1 bg-neutral-100 px-2 py-1 rounded-md text-xs">
+              <MapPin className="h-3.5 w-3.5 text-neutral-500" />
+              <Select value={activeSite} onValueChange={setActiveSite}>
+                <SelectTrigger className="h-7 border-0 bg-transparent shadow-none p-0 text-xs font-semibold focus:ring-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  {siteLocations.map((site) => (
+                    <SelectItem key={site} value={site}>{site}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Team Profile selector */}
+            <div className="flex items-center gap-1 bg-neutral-100 px-2 py-1 rounded-md text-xs">
+              <Users2 className="h-3.5 w-3.5 text-neutral-500" />
+              <Select value={activeTeam} onValueChange={setActiveTeam}>
+                <SelectTrigger className="h-7 border-0 bg-transparent shadow-none p-0 text-xs font-semibold focus:ring-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  {teamProfiles.map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button onClick={() => navigate('/clients?new=1')} size="sm" className="bg-[#E11B22] hover:bg-[#B81319] text-white shadow-sm shrink-0 px-3">
+              <span className="hidden sm:inline">New Delivery</span>
+              <span className="sm:hidden">+</span>
+            </Button>
+          </div>
         </header>
         <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 fade-in">
           <Outlet />
         </main>
-      </div>
     </div>
   );
 }

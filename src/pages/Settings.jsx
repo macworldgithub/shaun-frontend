@@ -23,21 +23,23 @@ export default function Settings() {
   }, []);
   useEffect(() => { reload(); }, [reload]);
 
+  const [activeSite, setActiveSite] = useState(() => localStorage.getItem('active_site') || 'Fairfield');
+
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-neutral-500 mt-1">Dealership profile, SMS automations and team.</p>
+        <p className="text-neutral-500 mt-1">Multi-site dealership profile, SMS automations and team access.</p>
       </div>
 
       <Card className="border-neutral-200">
-        <CardHeader><CardTitle className="text-base font-semibold">Dealership profile</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base font-semibold">Dealership profile ({activeSite})</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-2 gap-4">
-          <Field label="Dealership name" defaultValue="BYD Melbourne & Fairfield"/>
-          <Field label="Brand SMS sender" defaultValue="BYDMELB"/>
-          <Field label="Contact email" defaultValue="deliveries@bydmelbourne.com.au"/>
+          <Field label="Active Site Location" defaultValue={`BYD ${activeSite} Delivery Centre`}/>
+          <Field label="Brand SMS Sender" defaultValue={`BYD${activeSite.toUpperCase().slice(0, 4)}`}/>
+          <Field label="Contact Email" defaultValue={`deliveries@byd${activeSite.toLowerCase()}.com.au`}/>
           <Field label="Phone" defaultValue="+61 3 9000 1234"/>
-          <Field label="Address" full defaultValue="Melbourne & Fairfield Delivery Centre, VIC"/>
+          <Field label="Address" full defaultValue={`${activeSite} Delivery Centre, Australia`}/>
         </CardContent>
       </Card>
 

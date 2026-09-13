@@ -42,6 +42,10 @@ export const documentTypes = [
   'ATR incomplete',
   'Licence front',
   'Licence back',
+  'Medicare card',
+  'Transfer form',
+  'Acquisition police strip',
+  'Customer trade-in checklist',
   'EFT form',
   'Bank statement',
   'Handover checklist',
@@ -67,13 +71,16 @@ export const accessoryStatuses = [
   'Fitted',
 ];
 
+export const siteLocations = ['Fairfield', 'Melbourne', 'Sydney', 'Brisbane', 'Perth', 'Adelaide'];
+export const teamProfiles = ['Booking Team', 'Handover Team', 'All Teams'];
+
 export const checklistItems = [
-  { id: 'ck1', label: 'Pre-delivery inspection completed' },
-  { id: 'ck2', label: 'Detailing & wash finished' },
-  { id: 'ck3', label: 'Plates & registration fitted' },
-  { id: 'ck4', label: 'Accessories installed' },
-  { id: 'ck5', label: 'Owner manual & service book in vehicle' },
-  { id: 'ck6', label: 'Fuel topped up / battery charged' },
-  { id: 'ck7', label: 'Handover paperwork prepared' },
-  { id: 'ck8', label: 'Customer notified via SMS' },
+  { id: 'ck1', label: 'Contract signed & Authority signed' },
+  { id: 'ck2', label: 'License uploaded & Medicare uploaded' },
+  { id: 'ck3', label: 'Client ID for business', hasInput: true },
+  { id: 'ck4', label: 'Trade-in transfers (if applicable) & Demo transfers (if applicable)' },
+  { id: 'ck5', label: 'Introduction email sent' },
+  { id: 'ck6', label: 'All accessories fitted / missing accessories flagged & customer informed' },
+  { id: 'ck7', label: 'Delivery booked & Handover checklist complete' },
+  { id: 'ck8', label: 'Car delivered' },
 ];

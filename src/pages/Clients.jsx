@@ -11,13 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Textarea } from '../components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { clientsApi, adminApi } from '../lib/api';
-import { deliveryStages, contactStatuses } from '../constants';
+import { deliveryStages, contactStatuses, siteLocations } from '../constants';
 import { stageClass, formatDate } from '../lib/utils';
 import { toast } from 'sonner';
 import ImportFromVYDialog from '../components/ImportFromVYDialog';
 import PaginationControls from '../components/PaginationControls';
 
-const empty = { name: '', phone: '', email: '', vehicle: '', rego: '', vin: '', delivery_date: '', stage: 'Scheduled', salesperson: '', notes: '', location: '', address: '' };
+const empty = { name: '', phone: '', email: '', vehicle: '', rego: '', vin: '', delivery_date: '', stage: 'Scheduled', salesperson: '', secondary_salesperson: '', delivery_consultant: '', handover_specialist: '', site_location: 'Fairfield', notes: '', location: '', address: '' };
 
 const contactBadge = {
   'Not Contacted': 'bg-rose-100 text-rose-700',
@@ -58,17 +58,32 @@ export default function Clients() {
     if (params.get('new') === '1') { setOpen(true); params.delete('new'); setParams(params); }
   }, [params, setParams]);
 
+  const filterParam = params.get('filter');
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
+    const todayIso = new Date().toISOString().slice(0, 10);
     return clients.filter((c) => {
       const matches = !q || c.name.toLowerCase().includes(q) || c.vehicle.toLowerCase().includes(q) || (c.rego || '').toLowerCase().includes(q) || (c.phone || '').includes(q);
       const stageOk = stageFilter === 'All' || c.stage === stageFilter;
       const contactOk = contactFilter === 'All' || c.contact_status === contactFilter;
       const agentOk = agentFilter === 'All' ||
         (agentFilter === 'Unassigned' ? !c.assigned_agent_id : c.assigned_agent_id === agentFilter);
-      return matches && stageOk && contactOk && agentOk;
+
+      let exceptionOk = true;
+      if (filterParam === 'overdue') {
+        exceptionOk = (c.arrived && c.stage !== 'Delivered') || (c.delivery_date && c.delivery_date < todayIso && c.stage !== 'Delivered');
+      } else if (filterParam === 'trade_in') {
+        exceptionOk = ['Expiring', 'Expired', 'At risk'].includes(c.trade_in_status) || c.trade_in_flag;
+      } else if (filterParam === 'unallocated') {
+        exceptionOk = (!c.vin || !c.rego) && c.stage !== 'Delivered';
+      } else if (filterParam === 'docs') {
+        exceptionOk = ['Requested', 'Partial'].includes(c.document_completeness);
+      }
+
+      return matches && stageOk && contactOk && agentOk && exceptionOk;
     });
-  }, [clients, search, stageFilter, contactFilter, agentFilter]);
+  }, [clients, search, stageFilter, contactFilter, agentFilter, filterParam]);
 
   const agentMap = useMemo(() => {
     const m = {};
@@ -118,8 +133,14 @@ export default function Clients() {
                 <Field label="Mobile (E.164)"><Input placeholder="+61412345678" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
                 <Field label="Email"><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
                 <Field label="Vehicle"><Input placeholder="BYD Atto 3" value={form.vehicle} onChange={(e) => setForm({ ...form, vehicle: e.target.value })} /></Field>
+                <Field label="Dealership Site Location">
+                  <Select value={form.site_location || 'Fairfield'} onValueChange={(v) => setForm({ ...form, site_location: v })}>
+                    <SelectTrigger><SelectValue/></SelectTrigger>
+                    <SelectContent>{siteLocations.map((site) => <SelectItem key={site} value={site}>{site}</SelectItem>)}</SelectContent>
+                  </Select>
+                </Field>
                 <Field label="Rego"><Input value={form.rego} onChange={(e) => setForm({ ...form, rego: e.target.value })} /></Field>
-                <Field label="Location"><Input placeholder="Suburb, VIC" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} /></Field>
+                <Field label="Street Address"><Input placeholder="123 Main St, Suburb VIC" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></Field>
                 <Field label="Delivery date"><Input type="date" value={form.delivery_date || ''} onChange={(e) => setForm({ ...form, delivery_date: e.target.value })} /></Field>
                 <Field label="Stage">
                   <Select value={form.stage} onValueChange={(v) => setForm({ ...form, stage: v })}>
@@ -127,7 +148,10 @@ export default function Clients() {
                     <SelectContent>{deliveryStages.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                   </Select>
                 </Field>
-                <Field label="Salesperson" full><Input value={form.salesperson} onChange={(e) => setForm({ ...form, salesperson: e.target.value })} /></Field>
+                <Field label="Primary Salesperson"><Input placeholder="Primary sales rep" value={form.salesperson} onChange={(e) => setForm({ ...form, salesperson: e.target.value })} /></Field>
+                <Field label="Secondary Salesperson"><Input placeholder="Secondary sales rep (optional)" value={form.secondary_salesperson} onChange={(e) => setForm({ ...form, secondary_salesperson: e.target.value })} /></Field>
+                <Field label="Delivery Follow-up Consultant"><Input placeholder="Consultant for follow-up" value={form.delivery_consultant} onChange={(e) => setForm({ ...form, delivery_consultant: e.target.value })} /></Field>
+                <Field label="Handover Specialist" full><Input placeholder="Staff conducting physical handover" value={form.handover_specialist} onChange={(e) => setForm({ ...form, handover_specialist: e.target.value })} /></Field>
                 <Field label="Notes" full><Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>
               </div>
               <DialogFooter>
@@ -146,6 +170,12 @@ export default function Clients() {
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
           <Input placeholder="Search by name, vehicle or rego…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9 bg-white" />
         </div>
+        {filterParam && (
+          <Badge variant="outline" className="bg-amber-50 text-amber-900 border-amber-300 gap-1 font-semibold py-1.5 px-2.5">
+            Filter: {filterParam}
+            <button onClick={() => { params.delete('filter'); setParams(params); }} className="hover:text-red-600 font-bold ml-1">×</button>
+          </Badge>
+        )}
         <Select value={contactFilter} onValueChange={setContactFilter}>
           <SelectTrigger className="w-44 bg-white"><SelectValue placeholder="Contact status"/></SelectTrigger>
           <SelectContent>

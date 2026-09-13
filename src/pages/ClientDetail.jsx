@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Separator } from '../components/ui/separator';
 import { Switch } from '../components/ui/switch';
 import { clientsApi, smsApi, templatesApi, adminApi } from '../lib/api';
-import { deliveryStages, contactStatuses, accessoryStatuses, checklistItems, registrationStatuses, handoverChecklistStatuses, tradeInStatuses, saleTypes, documentTypes, documentStatuses, activationStatuses, offerStatuses, yourWaySelections } from '../constants';
+import { deliveryStages, contactStatuses, accessoryStatuses, checklistItems, registrationStatuses, handoverChecklistStatuses, tradeInStatuses, saleTypes, documentTypes, documentStatuses, activationStatuses, offerStatuses, yourWaySelections, siteLocations } from '../constants';
 import { stageClass, formatDate, formatDateTime, renderTemplate } from '../lib/utils';
 import { toast } from 'sonner';
 
@@ -465,7 +465,12 @@ export default function ClientDetail() {
           </Card>
 
           <Card className="border-neutral-200">
-            <CardHeader className="pb-3"><CardTitle className="text-base font-semibold flex items-center gap-2"><Wrench className="h-4 w-4"/> Accessories &amp; aftermarket</CardTitle></CardHeader>
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+              <CardTitle className="text-base font-semibold flex items-center gap-2"><Wrench className="h-4 w-4"/> Accessories &amp; aftermarket</CardTitle>
+              <Button variant="outline" size="sm" onClick={syncInventory} className="text-xs h-8 gap-1">
+                Sync from VY
+              </Button>
+            </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex gap-2">
                 <Input placeholder="Add accessory (e.g. Floor Mats Moulded)" value={accessoryName} onChange={(e) => setAccessoryName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addAccessory()}/>
@@ -518,17 +523,48 @@ export default function ClientDetail() {
 
         <div className="space-y-6">
           <Card className="border-neutral-200">
-            <CardHeader className="pb-3"><CardTitle className="text-base font-semibold">Vehicle</CardTitle></CardHeader>
+            <CardHeader className="pb-3"><CardTitle className="text-base font-semibold">Vehicle &amp; Address</CardTitle></CardHeader>
             <CardContent className="space-y-3 text-sm">
               <Row icon={Car} label="Vehicle" value={client.vehicle}/>
               <Row label="Rego" value={client.rego}/>
               <Row label="VIN" value={client.vin}/>
               <Row label="Deal type" value={client.deal_type}/>
-              <Row icon={MapPin} label="Location" value={client.location}/>
+              <Row icon={MapPin} label="Street Address" value={client.address || client.location}/>
               <Row icon={Calendar} label="Delivery" value={formatDate(client.delivery_date)}/>
-              <Row icon={User} label="Salesperson" value={client.salesperson}/>
-              {client.assigned_agent_id && <Row label="Agent" value={agentMap[client.assigned_agent_id] || 'Agent'}/>}
               {client.vy_order_id && <Row label="VY order" value={client.vy_order_id}/>}
+            </CardContent>
+          </Card>
+
+          <Card className="border-neutral-200">
+            <CardHeader className="pb-3"><CardTitle className="text-base font-semibold flex items-center gap-2"><MapPin className="h-4 w-4"/> Site &amp; Staff Assignment</CardTitle></CardHeader>
+            <CardContent className="space-y-3 text-xs">
+              <div>
+                <Label className="text-[11px] font-semibold text-neutral-600 mb-1 block">Dealership Site Location</Label>
+                <Select value={client.site_location || 'Fairfield'} onValueChange={(v) => patch({ site_location: v })}>
+                  <SelectTrigger className="h-8 text-xs bg-white"><SelectValue/></SelectTrigger>
+                  <SelectContent>{siteLocations.map((site) => <SelectItem key={site} value={site}>{site}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-[11px] font-semibold text-neutral-600 mb-1 block">Primary Salesperson</Label>
+                <Input value={client.salesperson || ''} placeholder="Primary sales rep" onChange={(e) => patch({ salesperson: e.target.value })} className="h-8 text-xs bg-white"/>
+              </div>
+
+              <div>
+                <Label className="text-[11px] font-semibold text-neutral-600 mb-1 block">Secondary Salesperson</Label>
+                <Input value={client.secondary_salesperson || ''} placeholder="Secondary sales rep (if 2 sales reps)" onChange={(e) => patch({ secondary_salesperson: e.target.value })} className="h-8 text-xs bg-white"/>
+              </div>
+
+              <div>
+                <Label className="text-[11px] font-semibold text-neutral-600 mb-1 block">Delivery Follow-Up Consultant</Label>
+                <Input value={client.delivery_consultant || ''} placeholder="Consultant for delivery follow-up" onChange={(e) => patch({ delivery_consultant: e.target.value })} className="h-8 text-xs bg-white"/>
+              </div>
+
+              <div>
+                <Label className="text-[11px] font-semibold text-neutral-600 mb-1 block">Handover Specialist</Label>
+                <Input value={client.handover_specialist || ''} placeholder="Staff performing physical handover" onChange={(e) => patch({ handover_specialist: e.target.value })} className="h-8 text-xs bg-white"/>
+              </div>
             </CardContent>
           </Card>
 
@@ -537,12 +573,24 @@ export default function ClientDetail() {
               <CardTitle className="text-base font-semibold">Handover checklist</CardTitle>
               <span className="text-xs font-medium text-neutral-500">{completedChecks}/{checklistItems.length}</span>
             </CardHeader>
-            <CardContent className="space-y-1">
+            <CardContent className="space-y-2">
               {checklistItems.map((item) => (
-                <button key={item.id} onClick={() => toggleCheck(item.id)} className="flex items-center gap-2.5 w-full px-2 py-2 rounded-md hover:bg-neutral-50 text-left">
-                  {checks[item.id] ? <CheckCircle2 className="h-4 w-4 text-emerald-600"/> : <Circle className="h-4 w-4 text-neutral-300"/>}
-                  <span className={`text-sm ${checks[item.id] ? 'text-neutral-400 line-through' : 'text-neutral-800'}`}>{item.label}</span>
-                </button>
+                <div key={item.id} className="space-y-1 py-0.5">
+                  <button onClick={() => toggleCheck(item.id)} className="flex items-start gap-2.5 w-full px-2 py-1.5 rounded-md hover:bg-neutral-50 text-left">
+                    {checks[item.id] ? <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5"/> : <Circle className="h-4 w-4 text-neutral-300 shrink-0 mt-0.5"/>}
+                    <span className={`text-sm ${checks[item.id] ? 'text-neutral-400 line-through' : 'text-neutral-800'}`}>{item.label}</span>
+                  </button>
+                  {item.hasInput && (
+                    <div className="pl-8 pr-2 pb-1">
+                      <Input
+                        placeholder="Enter Business Client ID #"
+                        value={client.business_client_id || ''}
+                        onChange={(e) => patch({ business_client_id: e.target.value })}
+                        className="h-8 text-xs bg-white border-neutral-200"
+                      />
+                    </div>
+                  )}
+                </div>
               ))}
             </CardContent>
           </Card>

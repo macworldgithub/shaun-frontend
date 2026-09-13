@@ -1,13 +1,13 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Truck, ArrowUpRight, AlertTriangle, UserPlus, Phone, FileWarning, BadgeAlert, ClipboardCheck, RefreshCw } from 'lucide-react';
+import { Truck, ArrowUpRight, AlertTriangle, UserPlus, Phone, FileWarning, BadgeAlert, ClipboardCheck, RefreshCw, MessageSquare, FileText, Calendar, Target, ShieldAlert } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Progress } from '../components/ui/progress';
 import { adminApi, clientsApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
-import { stageClass, formatDate } from '../lib/utils';
+import { stageClass, formatDate, formatDateTime } from '../lib/utils';
 import { deliveryStages } from '../constants';
 import { toast } from 'sonner';
 
@@ -19,6 +19,9 @@ export default function Dashboard() {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshingOffers, setRefreshingOffers] = useState(false);
+
+  const activeSite = localStorage.getItem('active_site') || 'Fairfield';
+  const activeTeam = localStorage.getItem('active_team') || 'All Teams';
 
   useEffect(() => {
     let cancelled = false;
@@ -67,19 +70,206 @@ export default function Dashboard() {
 
   if (loading) return <DashboardSkeleton/>;
 
+  const todayCompleted = stats?.today_completed || 0;
+  const dailyTarget = stats?.daily_target || 10;
+  const targetPercent = Math.min(100, Math.round((todayCompleted / dailyTarget) * 100));
+
   return (
     <div className="space-y-8">
+      {/* Header */}
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.name?.split(' ')[0]}</h1>
-          <p className="text-neutral-500 mt-1">Live pipeline across BYD Melbourne &amp; Fairfield Delivery Centre.</p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.name?.split(' ')[0]}</h1>
+            <Badge variant="outline" className="text-xs bg-neutral-100">{activeTeam}</Badge>
+          </div>
+          <p className="text-neutral-500 mt-1">Live operational metrics &amp; handover pipeline for BYD {activeSite}.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" className="gap-2" onClick={refreshOffers} disabled={refreshingOffers}><RefreshCw className={`h-4 w-4 ${refreshingOffers ? 'animate-spin' : ''}`}/>Refresh offers</Button>
-          <Link to="/deliveries"><Button variant="outline" className="gap-2">View pipeline <ArrowUpRight className="h-4 w-4"/></Button></Link>
+          <Link to="/deliveries"><Button className="bg-[#E11B22] text-white hover:bg-[#B81319] gap-2">View calendar <ArrowUpRight className="h-4 w-4"/></Button></Link>
         </div>
       </div>
 
+      {/* 1. Daily Metrics & Pipeline Banner */}
+      <Card className="border-neutral-200 bg-gradient-to-br from-neutral-900 via-neutral-800 to-neutral-900 text-white shadow-lg">
+        <CardContent className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-center">
+            {/* Target progress */}
+            <div className="md:col-span-1 border-r border-neutral-700 pr-4">
+              <div className="flex items-center gap-2 text-neutral-300 text-xs font-semibold uppercase tracking-wider mb-2">
+                <Target className="h-4 w-4 text-[#E11B22]" /> Daily Handover Target
+              </div>
+              <div className="flex items-baseline justify-between mb-2">
+                <span className="text-3xl font-extrabold">{todayCompleted} <span className="text-sm font-normal text-neutral-400">/ {dailyTarget} completed</span></span>
+                <span className="text-xs font-semibold text-emerald-400">{targetPercent}%</span>
+              </div>
+              <Progress value={targetPercent} className="h-2 bg-neutral-700" />
+            </div>
+
+            {/* Short-term Delivery Pipelines */}
+            <div className="md:col-span-3 grid grid-cols-3 gap-4">
+              <Link to="/deliveries" className="bg-neutral-800/80 hover:bg-neutral-800 p-3.5 rounded-xl border border-neutral-700/60 block transition-all">
+                <p className="text-xs text-neutral-400 font-semibold uppercase tracking-wider">Today</p>
+                <div className="flex items-baseline justify-between mt-1">
+                  <span className="text-2xl font-bold">{stats?.pipeline_today || 0}</span>
+                  <span className="text-[11px] text-emerald-400 font-medium">Handovers</span>
+                </div>
+              </Link>
+              <Link to="/deliveries" className="bg-neutral-800/80 hover:bg-neutral-800 p-3.5 rounded-xl border border-neutral-700/60 block transition-all">
+                <p className="text-xs text-neutral-400 font-semibold uppercase tracking-wider">Tomorrow</p>
+                <div className="flex items-baseline justify-between mt-1">
+                  <span className="text-2xl font-bold">{stats?.pipeline_tomorrow || 0}</span>
+                  <span className="text-[11px] text-blue-400 font-medium">Scheduled</span>
+                </div>
+              </Link>
+              <Link to="/deliveries" className="bg-neutral-800/80 hover:bg-neutral-800 p-3.5 rounded-xl border border-neutral-700/60 block transition-all">
+                <p className="text-xs text-neutral-400 font-semibold uppercase tracking-wider">+1 Day</p>
+                <div className="flex items-baseline justify-between mt-1">
+                  <span className="text-2xl font-bold">{stats?.pipeline_plus_one || 0}</span>
+                  <span className="text-[11px] text-purple-400 font-medium">Upcoming</span>
+                </div>
+              </Link>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 2. "Leak Prevention" Exception Views */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <ShieldAlert className="h-5 w-5 text-amber-600" />
+          <h2 className="text-lg font-bold tracking-tight">Leak Prevention &amp; Exception View</h2>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Link to="/clients?filter=overdue" className="block">
+            <Card className="border-amber-200 bg-amber-50/50 hover:bg-amber-50 transition-colors">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-amber-800 tracking-wide">Overdue updates</p>
+                  <p className="text-2xl font-bold text-amber-900 mt-1">{stats?.overdue_updates || 0}</p>
+                </div>
+                <div className="h-9 w-9 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link to="/clients?filter=trade_in" className="block">
+            <Card className="border-red-200 bg-red-50/50 hover:bg-red-50 transition-colors">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-red-800 tracking-wide">Expiring trade-in policy</p>
+                  <p className="text-2xl font-bold text-red-900 mt-1">{stats?.trade_ins_at_risk || 0}</p>
+                </div>
+                <div className="h-9 w-9 rounded-lg bg-red-100 flex items-center justify-center text-red-700">
+                  <BadgeAlert className="h-5 w-5" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link to="/clients?filter=unallocated" className="block">
+            <Card className="border-purple-200 bg-purple-50/50 hover:bg-purple-50 transition-colors">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-purple-800 tracking-wide">Unallocated stock / VIN</p>
+                  <p className="text-2xl font-bold text-purple-900 mt-1">{stats?.unallocated_stock || 0}</p>
+                </div>
+                <div className="h-9 w-9 rounded-lg bg-purple-100 flex items-center justify-center text-purple-700">
+                  <Truck className="h-5 w-5" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link to="/clients?filter=docs" className="block">
+            <Card className="border-orange-200 bg-orange-50/50 hover:bg-orange-50 transition-colors">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-orange-800 tracking-wide">Missing paperwork</p>
+                  <p className="text-2xl font-bold text-orange-900 mt-1">{stats?.docs_outstanding || 0}</p>
+                </div>
+                <div className="h-9 w-9 rounded-lg bg-orange-100 flex items-center justify-center text-orange-700">
+                  <FileWarning className="h-5 w-5" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
+      </div>
+
+      {/* 3. Clickable Action Feeds */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Incoming Messages Feed */}
+        <Card className="border-neutral-200">
+          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <MessageSquare className="h-4 w-4 text-[#E11B22]" /> Incoming Messages Feed
+            </CardTitle>
+            <Link to="/messages" className="text-xs text-[#E11B22] font-semibold hover:underline">View all</Link>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-neutral-100">
+              {(!stats?.recent_messages || stats.recent_messages.length === 0) ? (
+                <p className="px-6 py-6 text-sm text-neutral-500 text-center">No incoming messages received yet.</p>
+              ) : (
+                stats.recent_messages.map((m) => (
+                  <Link key={m.id} to={m.client_id ? `/clients/${m.client_id}` : '/messages'} className="flex items-start gap-3 px-6 py-3.5 hover:bg-neutral-50 transition-colors">
+                    <div className="h-8 w-8 rounded-full bg-red-100 text-[#E11B22] text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                      {(m.client_name || 'C').split(' ').map(n => n[0]).slice(0, 2).join('')}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-neutral-900 truncate">{m.client_name || m.phone}</p>
+                        <span className="text-[10px] text-neutral-400">{formatDateTime(m.sent_at)}</span>
+                      </div>
+                      <p className="text-xs text-neutral-600 truncate mt-0.5">{m.body}</p>
+                    </div>
+                  </Link>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Document Upload Notifications Feed */}
+        <Card className="border-neutral-200">
+          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <FileText className="h-4 w-4 text-emerald-600" /> Document Upload Notifications
+            </CardTitle>
+            <Link to="/clients" className="text-xs text-[#E11B22] font-semibold hover:underline">View clients</Link>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-neutral-100">
+              {(!stats?.recent_doc_uploads || stats.recent_doc_uploads.length === 0) ? (
+                <p className="px-6 py-6 text-sm text-neutral-500 text-center">No recent document uploads.</p>
+              ) : (
+                stats.recent_doc_uploads.map((doc, idx) => (
+                  <Link key={idx} to={`/clients/${doc.client_id}`} className="flex items-start gap-3 px-6 py-3.5 hover:bg-neutral-50 transition-colors">
+                    <div className="h-8 w-8 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+                      <FileText className="h-4 w-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-neutral-900 truncate">{doc.client_name}</p>
+                        <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">New File</Badge>
+                      </div>
+                      <p className="text-xs text-neutral-600 truncate mt-0.5">
+                        <span className="font-medium text-neutral-800">{doc.document_type}</span> {doc.file_name ? `(${doc.file_name})` : ''}
+                      </p>
+                    </div>
+                  </Link>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main cards grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((c) => (
           <Card key={c.label} className="border-neutral-200 hover:shadow-md transition-shadow">

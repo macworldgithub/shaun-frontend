@@ -1,21 +1,25 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, List } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, List, Clock, CheckCircle2, AlertCircle, Wrench, FileCheck, Filter } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { clientsApi } from '../lib/api';
-import { deliveryStages } from '../constants';
+import { deliveryStages, teamProfiles } from '../constants';
 import { stageClass, formatDate } from '../lib/utils';
 
 function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
 function addMonths(d, n) { return new Date(d.getFullYear(), d.getMonth() + n, 1); }
 
+const DAILY_TARGET = 10;
+
 export default function Deliveries() {
   const [clients, setClients] = useState([]);
-  const [view, setView] = useState('pipeline');
+  const [view, setView] = useState('calendar');
   const [cursor, setCursor] = useState(startOfMonth(new Date()));
+  const [teamFilter, setTeamFilter] = useState(() => localStorage.getItem('active_team') || 'All Teams');
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
@@ -50,18 +54,33 @@ export default function Deliveries() {
     <div className="space-y-6">
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Deliveries</h1>
-          <p className="text-neutral-500 mt-1">Pipeline and calendar of upcoming handovers</p>
+          <h1 className="text-3xl font-bold tracking-tight">Shared Handover Calendar</h1>
+          <p className="text-neutral-500 mt-1">Unified view across Booking &amp; Handover teams for schedule balancing and vehicle prep</p>
         </div>
-        <Tabs value={view} onValueChange={setView}>
-          <TabsList className="bg-white border border-neutral-200">
-            <TabsTrigger value="pipeline"><List className="h-4 w-4 mr-1.5"/>Pipeline</TabsTrigger>
-            <TabsTrigger value="calendar"><CalendarIcon className="h-4 w-4 mr-1.5"/>Calendar</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 bg-white border border-neutral-200 px-3 py-1.5 rounded-lg text-xs font-semibold">
+            <Filter className="h-3.5 w-3.5 text-neutral-400" />
+            <Select value={teamFilter} onValueChange={setTeamFilter}>
+              <SelectTrigger className="h-6 border-0 bg-transparent shadow-none p-0 text-xs font-bold focus:ring-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="end">
+                {teamProfiles.map((t) => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Tabs value={view} onValueChange={setView}>
+            <TabsList className="bg-white border border-neutral-200">
+              <TabsTrigger value="calendar"><CalendarIcon className="h-4 w-4 mr-1.5"/>Calendar</TabsTrigger>
+              <TabsTrigger value="pipeline"><List className="h-4 w-4 mr-1.5"/>Pipeline</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
       </div>
 
-      {loading && <p className="text-sm text-neutral-500">Loading…</p>}
+      {loading && <p className="text-sm text-neutral-500">Loading schedule…</p>}
 
       {!loading && view === 'pipeline' && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
@@ -96,9 +115,12 @@ export default function Deliveries() {
       )}
 
       {!loading && view === 'calendar' && (
-        <Card className="border-neutral-200">
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-base font-semibold">{cursor.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })}</CardTitle>
+        <Card className="border-neutral-200 shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between pb-3 flex-wrap gap-2">
+            <div>
+              <CardTitle className="text-lg font-bold">{cursor.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })}</CardTitle>
+              <p className="text-xs text-neutral-500 mt-0.5">Showing capacity targets (Daily Target: {DAILY_TARGET} deliveries)</p>
+            </div>
             <div className="flex items-center gap-1">
               <Button variant="outline" size="icon" onClick={() => setCursor(addMonths(cursor, -1))}><ChevronLeft className="h-4 w-4"/></Button>
               <Button variant="outline" size="sm" onClick={() => setCursor(startOfMonth(new Date()))}>Today</Button>
@@ -106,24 +128,50 @@ export default function Deliveries() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-7 text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">
+            <div className="grid grid-cols-7 text-xs font-bold text-neutral-500 uppercase tracking-wide mb-2 text-center">
               {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => <div key={d} className="px-2 py-1">{d}</div>)}
             </div>
-            <div className="grid grid-cols-7 gap-1">
+            <div className="grid grid-cols-7 gap-1.5">
               {monthGrid.map((cell, i) => {
                 const cellKey = cell ? `cell-${cell.iso}` : `empty-${cursor.getFullYear()}-${cursor.getMonth()}-${i}`;
+                const count = cell?.deliveries?.length || 0;
+                const isOverCapacity = count > DAILY_TARGET;
+                const isNearCapacity = count >= DAILY_TARGET * 0.8 && count <= DAILY_TARGET;
+
                 return (
-                  <div key={cellKey} className={`min-h-[110px] rounded-lg border ${cell ? 'border-neutral-200 bg-white' : 'border-transparent'} p-2`}>
+                  <div key={cellKey} className={`min-h-[125px] rounded-lg border ${cell ? 'border-neutral-200 bg-white' : 'border-transparent'} p-2 flex flex-col justify-between`}>
                     {cell && (
                       <>
-                        <div className="text-xs font-semibold text-neutral-700 mb-1.5">{cell.date.getDate()}</div>
-                        <div className="space-y-1">
-                          {cell.deliveries.slice(0, 3).map((d) => (
-                            <Link key={d.id} to={`/clients/${d.id}`} className={`block ${stageClass(d.stage)} rounded px-1.5 py-1 text-[11px] font-medium truncate hover:opacity-80`}>
-                              {d.name.split(' ')[0]} · {d.rego || d.location || ''}
-                            </Link>
-                          ))}
-                          {cell.deliveries.length > 3 && <p className="text-[10px] text-neutral-500 px-1">+{cell.deliveries.length - 3} more</p>}
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-xs font-extrabold text-neutral-800">{cell.date.getDate()}</span>
+                            {count > 0 && (
+                              <Badge className={`text-[10px] px-1.5 py-0 h-4 border-0 font-medium ${
+                                isOverCapacity ? 'bg-red-100 text-red-800' : isNearCapacity ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                              }`}>
+                                {count}/{DAILY_TARGET}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            {cell.deliveries.slice(0, 3).map((d) => {
+                              const ready = d.handover_checklist_status === 'Signed copy on file' && d.activation_ready;
+                              return (
+                                <Link key={d.id} to={`/clients/${d.id}`} className={`block rounded px-1.5 py-1 text-[11px] font-medium truncate border transition-all ${
+                                  ready ? 'bg-emerald-50 text-emerald-900 border-emerald-200' : 'bg-neutral-50 text-neutral-900 border-neutral-200 hover:border-neutral-300'
+                                }`}>
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className="truncate">{d.name.split(' ')[0]}</span>
+                                    {ready && <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />}
+                                  </div>
+                                  <div className="text-[9px] text-neutral-500 truncate">{d.vehicle} {d.rego ? `· ${d.rego}` : ''}</div>
+                                </Link>
+                              );
+                            })}
+                            {cell.deliveries.length > 3 && (
+                              <p className="text-[10px] text-neutral-500 font-semibold px-1">+ {cell.deliveries.length - 3} more handovers</p>
+                            )}
+                          </div>
                         </div>
                       </>
                     )}

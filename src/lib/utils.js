@@ -29,10 +29,23 @@ export const formatDateTime = (iso) => {
 };
 
 export const renderTemplate = (body, data) => {
-  return body
-    .replace(/{{name}}/g, data.name || '')
-    .replace(/{{vehicle}}/g, data.vehicle || '')
-    .replace(/{{date}}/g, data.date || '')
-    .replace(/{{agent}}/g, data.agent || 'the delivery team')
-    .replace(/{{rego}}/g, data.rego || '');
+  if (!body) return '';
+  let out = body;
+  const site = data.site_name || localStorage.getItem('active_site') || 'Fairfield';
+  const defaults = {
+    name: data.name || '',
+    customer_name: data.name || '',
+    vehicle: data.vehicle || '',
+    date: data.date || '',
+    agent: data.agent || 'the delivery team',
+    rego: data.rego || '',
+    site_name: site,
+    site_address: data.site_address || `${site} Delivery Centre`,
+    site_phone: data.site_phone || '+61 3 9000 1234',
+  };
+
+  Object.entries(defaults).forEach(([key, val]) => {
+    out = out.replaceAll(`{{${key}}}`, val).replaceAll(`{${key}}`, val);
+  });
+  return out;
 };
