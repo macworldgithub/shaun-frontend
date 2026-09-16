@@ -85,6 +85,19 @@ export const clientsApi = {
   refreshOffers: () => api.post('/clients/offers/refresh').then((r) => r.data),
   fetchOfferSnapshot: () => api.post('/clients/offers/website-snapshot').then((r) => r.data),
   bulkImport: (items) => api.post('/clients/import/bulk', items).then((r) => r.data),
+  getInspection: (id) => api.get(`/clients/${id}/inspection`).then((r) => r.data),
+  updateInspection: (id, data) => api.put(`/clients/${id}/inspection`, data).then((r) => r.data),
+  completeInspection: (id, data) => api.post(`/clients/${id}/inspection/complete`, data).then((r) => r.data),
+  getInspectionPdfUrl: (id) => `${API_BASE}/clients/${id}/inspection/pdf`,
+  downloadInspectionPdf: async (id, fileName = 'delivery-inspection.pdf') => {
+    const response = await api.get(`/clients/${id}/inspection/pdf`, { responseType: 'blob' });
+    const url = URL.createObjectURL(response.data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
+  },
 };
 
 // ===== SMS =====

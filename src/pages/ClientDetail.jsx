@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Phone, Mail, Car, Calendar, User, Send, MessageSquare, CheckCircle2, Circle, MapPin, AlertTriangle, Plus, X, Wrench, FileText, Download } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, Car, Calendar, User, Send, MessageSquare, CheckCircle2, Circle, MapPin, AlertTriangle, Plus, X, Wrench, FileText, Download, ShieldCheck, Sparkles, Layers, FileCheck } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -10,9 +10,10 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Separator } from '../components/ui/separator';
 import { Switch } from '../components/ui/switch';
+import { Progress } from '../components/ui/progress';
 import { clientsApi, smsApi, templatesApi, adminApi } from '../lib/api';
 import { deliveryStages, contactStatuses, accessoryStatuses, checklistItems, registrationStatuses, handoverChecklistStatuses, tradeInStatuses, saleTypes, documentTypes, documentStatuses, activationStatuses, offerStatuses, yourWaySelections, siteLocations } from '../constants';
-import { stageClass, formatDate, formatDateTime, renderTemplate } from '../lib/utils';
+import { stageClass, formatDate, formatDateTime, renderTemplate, getReadinessDetails } from '../lib/utils';
 import { toast } from 'sonner';
 
 const SMS_SEGMENT_CHARS = 160;
@@ -218,6 +219,7 @@ export default function ClientDetail() {
   const completedChecks = checklistItems.filter((c) => checks[c.id]).length;
   const tradeInDaysLeft = client.trade_in_valid_until ? Math.ceil((new Date(`${client.trade_in_valid_until}T23:59:59`) - new Date()) / 86400000) : null;
   const matchedOffers = offerMatches.filter((item) => item.eligible);
+  const readiness = getReadinessDetails(client);
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -235,9 +237,49 @@ export default function ClientDetail() {
         </div>
       )}
 
+      {/* Ready For Delivery Callout Banner */}
+      {readiness.isReady && (
+        <div className="rounded-xl border border-emerald-300 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 p-4 shadow-sm flex items-center justify-between flex-wrap gap-4 animate-in fade-in duration-300">
+          <div className="flex items-center gap-3.5">
+            <div className="h-10 w-10 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-md shrink-0">
+              <ShieldCheck className="h-6 w-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-2.5 py-0.5 text-xs tracking-wider uppercase shadow-sm">
+                  Ready For Delivery
+                </Badge>
+                <span className="text-xs font-semibold text-emerald-900 flex items-center gap-1">
+                  <Sparkles className="h-3.5 w-3.5 text-emerald-600" /> All 4 Operational Requirements Satisfied
+                </span>
+              </div>
+              <p className="text-xs text-emerald-700 mt-0.5 font-medium">
+                Payment Complete ✅ · Trade-in docs returned ✅ · PDI complete ✅ · Registration docs returned ✅
+              </p>
+            </div>
+          </div>
+          {client.stage !== 'Ready for Pickup' && client.stage !== 'Delivered' && (
+            <Button
+              size="sm"
+              className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold shadow-sm"
+              onClick={() => patch({ stage: 'Ready for Pickup' })}
+            >
+              Update stage to Ready for Pickup
+            </Button>
+          )}
+        </div>
+      )}
+
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{client.name}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-3xl font-bold tracking-tight">{client.name}</h1>
+            {readiness.isReady && (
+              <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 font-bold text-xs py-1 px-2.5 flex items-center gap-1">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> Ready For Delivery
+              </Badge>
+            )}
+          </div>
           <div className="flex flex-wrap gap-4 mt-2 text-sm text-neutral-600">
             <span className="flex items-center gap-1.5"><Phone className="h-4 w-4 text-neutral-400"/>{client.phone}</span>
             {client.email && <span className="flex items-center gap-1.5"><Mail className="h-4 w-4 text-neutral-400"/>{client.email}</span>}
@@ -246,6 +288,11 @@ export default function ClientDetail() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <Link to={`/clients/${id}/inspection`}>
+            <Button className="bg-[#E11B22] hover:bg-[#c4161c] text-white text-xs font-bold gap-1.5 shadow-sm">
+              <FileCheck className="h-4 w-4" /> Digital Delivery Inspection
+            </Button>
+          </Link>
           <Select value={client.stage} onValueChange={(v) => patch({ stage: v })}>
             <SelectTrigger className="w-52 bg-white"><SelectValue/></SelectTrigger>
             <SelectContent>{deliveryStages.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
@@ -253,6 +300,132 @@ export default function ClientDetail() {
           <Badge className={`${stageClass(client.stage)} border-0 text-sm py-1.5 px-3`}>{client.stage}</Badge>
         </div>
       </div>
+
+      {/* Operational Middle Layer Card */}
+      <Card className={`border transition-all ${readiness.isReady ? 'border-emerald-300 bg-emerald-50/20' : 'border-neutral-200'}`}>
+        <CardHeader className="pb-3 flex flex-row items-center justify-between flex-wrap gap-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <Layers className="h-4 w-4 text-[#E11B22]" />
+              <CardTitle className="text-base font-semibold">Operational Middle Layer · Delivery Requirements</CardTitle>
+            </div>
+            <p className="text-xs text-neutral-500 mt-0.5">Track and verify the 4 operational requirements to mark vehicle Ready For Delivery</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge className={`text-xs font-semibold border-0 ${
+              readiness.isReady ? 'bg-emerald-100 text-emerald-800' : 'bg-neutral-100 text-neutral-700'
+            }`}>
+              {readiness.count}/4 Requirements Met
+            </Badge>
+            {!readiness.isReady && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs h-7 border-emerald-300 hover:bg-emerald-50 text-emerald-800 font-semibold"
+                onClick={() => patch({
+                  payment_complete: true,
+                  trade_in_docs_complete: true,
+                  pdi_complete: true,
+                  registration_docs_complete: true,
+                })}
+              >
+                Mark all 4 complete
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* 1. Payment */}
+            <div className={`p-3.5 rounded-lg border transition-all ${
+              readiness.payment ? 'bg-emerald-50/70 border-emerald-200' : 'bg-white border-neutral-200'
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-neutral-900 flex items-center gap-1.5">
+                  {readiness.payment ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <Circle className="h-4 w-4 text-neutral-400" />}
+                  Payment Complete
+                </span>
+                <Switch
+                  checked={Boolean(client.payment_complete)}
+                  onCheckedChange={(v) => patch({ payment_complete: v })}
+                />
+              </div>
+              <p className="text-[11px] text-neutral-500 leading-tight">
+                {client.payment_complete ? 'Payment confirmed & cleared' : 'Awaiting payment confirmation'}
+              </p>
+            </div>
+
+            {/* 2. Trade-in Docs */}
+            <div className={`p-3.5 rounded-lg border transition-all ${
+              readiness.tradeInDocs ? 'bg-emerald-50/70 border-emerald-200' : 'bg-white border-neutral-200'
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-neutral-900 flex items-center gap-1.5">
+                  {readiness.tradeInDocs ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <Circle className="h-4 w-4 text-neutral-400" />}
+                  Trade-in Docs Returned
+                </span>
+                <Switch
+                  checked={Boolean(client.trade_in_docs_complete || (!readiness.hasTradeIn && readiness.tradeInDocs))}
+                  disabled={!readiness.hasTradeIn}
+                  onCheckedChange={(v) => patch({ trade_in_docs_complete: v })}
+                />
+              </div>
+              <p className="text-[11px] text-neutral-500 leading-tight">
+                {!readiness.hasTradeIn
+                  ? 'No trade-in attached (Auto-satisfied)'
+                  : client.trade_in_docs_complete
+                  ? 'All trade-in docs returned'
+                  : 'Trade-in docs outstanding'}
+              </p>
+            </div>
+
+            {/* 3. Pre-Delivery Inspection */}
+            <div className={`p-3.5 rounded-lg border transition-all ${
+              readiness.pdi ? 'bg-emerald-50/70 border-emerald-200' : 'bg-white border-neutral-200'
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-neutral-900 flex items-center gap-1.5">
+                  {readiness.pdi ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <Circle className="h-4 w-4 text-neutral-400" />}
+                  PDI Complete
+                </span>
+                <Switch
+                  checked={Boolean(client.pdi_complete || client.stage === 'Ready for Pickup' || client.stage === 'Delivered')}
+                  onCheckedChange={(v) => patch({ pdi_complete: v })}
+                />
+              </div>
+              <p className="text-[11px] text-neutral-500 leading-tight">
+                {readiness.pdi ? 'Workshop inspection complete' : 'Pre-delivery inspection pending'}
+              </p>
+              <Link
+                to={`/clients/${id}/inspection`}
+                className="text-[11px] font-bold text-[#E11B22] hover:underline mt-1.5 flex items-center gap-1"
+              >
+                <FileCheck className="h-3 w-3" />
+                {readiness.pdi ? 'View Signed Inspection Form →' : 'Launch Digital Inspection Form →'}
+              </Link>
+            </div>
+
+            {/* 4. Registration Docs */}
+            <div className={`p-3.5 rounded-lg border transition-all ${
+              readiness.registrationDocs ? 'bg-emerald-50/70 border-emerald-200' : 'bg-white border-neutral-200'
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-neutral-900 flex items-center gap-1.5">
+                  {readiness.registrationDocs ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <Circle className="h-4 w-4 text-neutral-400" />}
+                  Registration Docs Returned
+                </span>
+                <Switch
+                  checked={Boolean(client.registration_docs_complete || client.registration_status === 'Complete')}
+                  onCheckedChange={(v) => patch({ registration_docs_complete: v })}
+                />
+              </div>
+              <p className="text-[11px] text-neutral-500 leading-tight">
+                {readiness.registrationDocs ? 'All registration docs returned' : 'Registration docs awaiting return'}
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Status row */}
       <Card className="border-neutral-200">
@@ -364,6 +537,12 @@ export default function ClientDetail() {
               <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
               <SelectContent>{handoverChecklistStatuses.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
             </Select>
+            <Link
+              to={`/clients/${id}/inspection`}
+              className="text-[10px] font-semibold text-[#E11B22] hover:underline mt-1 inline-block"
+            >
+              Open Digital Handover Checklist →
+            </Link>
           </Box>
           <Box label="Activation status">
             <Select value={client.activation_status || 'Blocked'} onValueChange={async (v) => {

@@ -49,3 +49,51 @@ export const renderTemplate = (body, data) => {
   });
   return out;
 };
+
+export const getReadinessDetails = (client) => {
+  if (!client) {
+    return {
+      isReady: false,
+      payment: false,
+      tradeInDocs: false,
+      pdi: false,
+      registrationDocs: false,
+      hasTradeIn: false,
+      count: 0,
+      total: 4,
+    };
+  }
+
+  const hasTradeIn = Boolean(client.trade_in_flag || client.trade_in_attached);
+  const payment = Boolean(client.payment_complete);
+  const tradeInDocs = !hasTradeIn || Boolean(
+    client.trade_in_docs_complete ||
+    ['Settled', 'Accepted', 'Vehicle received', 'Valid'].includes(client.trade_in_status)
+  );
+  const pdi = Boolean(
+    client.pdi_complete ||
+    client.stage === 'Ready for Pickup' ||
+    client.stage === 'Delivered'
+  );
+  const registrationDocs = Boolean(
+    client.registration_docs_complete ||
+    client.registration_status === 'Complete' ||
+    client.document_completeness === 'Complete'
+  );
+
+  const checks = [payment, tradeInDocs, pdi, registrationDocs];
+  const count = checks.filter(Boolean).length;
+  const isReady = count === 4;
+
+  return {
+    isReady,
+    payment,
+    tradeInDocs,
+    pdi,
+    registrationDocs,
+    hasTradeIn,
+    count,
+    total: 4,
+  };
+};
+

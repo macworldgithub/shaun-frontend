@@ -7,7 +7,7 @@ import { Button } from '../components/ui/button';
 import { Progress } from '../components/ui/progress';
 import { adminApi, clientsApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
-import { stageClass, formatDate, formatDateTime } from '../lib/utils';
+import { stageClass, formatDate, formatDateTime, getReadinessDetails } from '../lib/utils';
 import { deliveryStages } from '../constants';
 import { toast } from 'sonner';
 
@@ -59,13 +59,13 @@ export default function Dashboard() {
   };
 
   const cards = useMemo(() => stats ? [
-    { label: 'Total in pipeline', value: stats.total_clients - (stats.by_stage?.Delivered || 0), icon: Truck, accent: 'bg-blue-50 text-blue-600' },
-    { label: 'Arrived · pending update', value: stats.arrived_pending, icon: AlertTriangle, accent: 'bg-amber-50 text-amber-700' },
-    { label: 'Not contacted', value: stats.not_contacted, icon: Phone, accent: 'bg-rose-50 text-rose-600' },
-    { label: 'Unassigned', value: stats.unassigned, icon: UserPlus, accent: 'bg-violet-50 text-violet-600' },
-    { label: 'Docs outstanding', value: stats.docs_outstanding, icon: FileWarning, accent: 'bg-orange-50 text-orange-700' },
-    { label: 'Offers / trades at risk', value: (stats.offers_at_risk || 0) + (stats.trade_ins_at_risk || 0), icon: BadgeAlert, accent: 'bg-red-50 text-red-700' },
-    { label: 'Ready to hand over', value: stats.ready_to_handover, icon: ClipboardCheck, accent: 'bg-emerald-50 text-emerald-700' },
+    { label: 'Total in pipeline', value: stats.total_clients - (stats.by_stage?.Delivered || 0), icon: Truck, accent: 'bg-blue-50 text-blue-600', link: '/clients' },
+    { label: 'Arrived · pending update', value: stats.arrived_pending, icon: AlertTriangle, accent: 'bg-amber-50 text-amber-700', link: '/clients?filter=overdue' },
+    { label: 'Not contacted', value: stats.not_contacted, icon: Phone, accent: 'bg-rose-50 text-rose-600', link: '/clients' },
+    { label: 'Unassigned', value: stats.unassigned, icon: UserPlus, accent: 'bg-violet-50 text-violet-600', link: '/clients' },
+    { label: 'Docs outstanding', value: stats.docs_outstanding, icon: FileWarning, accent: 'bg-orange-50 text-orange-700', link: '/clients?filter=docs' },
+    { label: 'Offers / trades at risk', value: (stats.offers_at_risk || 0) + (stats.trade_ins_at_risk || 0), icon: BadgeAlert, accent: 'bg-red-50 text-red-700', link: '/clients?filter=trade_in' },
+    { label: 'Ready For Delivery', value: stats.ready_for_delivery ?? stats.ready_to_handover, icon: ClipboardCheck, accent: 'bg-emerald-50 text-emerald-700', link: '/clients?filter=ready_for_delivery' },
   ] : [], [stats]);
 
   if (loading) return <DashboardSkeleton/>;
@@ -271,21 +271,30 @@ export default function Dashboard() {
 
       {/* Main cards grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {cards.map((c) => (
-          <Card key={c.label} className="border-neutral-200 hover:shadow-md transition-shadow">
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm text-neutral-500 font-medium">{c.label}</p>
-                  <p className="text-3xl font-bold mt-1.5">{c.value}</p>
+        {cards.map((c) => {
+          const Content = (
+            <Card className="border-neutral-200 hover:shadow-md transition-shadow h-full">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm text-neutral-500 font-medium">{c.label}</p>
+                    <p className="text-3xl font-bold mt-1.5">{c.value}</p>
+                  </div>
+                  <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${c.accent}`}>
+                    <c.icon className="h-5 w-5" />
+                  </div>
                 </div>
-                <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${c.accent}`}>
-                  <c.icon className="h-5 w-5" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          );
+          return c.link ? (
+            <Link key={c.label} to={c.link} className="block">
+              {Content}
+            </Link>
+          ) : (
+            <div key={c.label}>{Content}</div>
+          );
+        })}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -297,25 +306,33 @@ export default function Dashboard() {
           <CardContent className="p-0">
             <div className="divide-y divide-neutral-100">
               {upcoming.length === 0 && <p className="px-6 py-8 text-sm text-neutral-500 text-center">No upcoming deliveries.</p>}
-              {upcoming.map((c) => (
-                <Link to={`/clients/${c.id}`} key={c.id} className="flex items-center gap-4 px-6 py-4 hover:bg-neutral-50">
-                  <div className="h-10 w-10 rounded-full bg-neutral-100 flex items-center justify-center font-semibold text-sm text-neutral-700">
-                    {(c.name || '').split(' ').map(n => n[0]).slice(0, 2).join('')}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-sm truncate">{c.name}</p>
-                      {c.arrived && c.stage !== 'Delivered' && <Badge className="bg-amber-100 text-amber-800 border-0 text-[10px]">Arrived</Badge>}
+              {upcoming.map((c) => {
+                const readiness = getReadinessDetails(c);
+                return (
+                  <Link to={`/clients/${c.id}`} key={c.id} className="flex items-center gap-4 px-6 py-4 hover:bg-neutral-50">
+                    <div className="h-10 w-10 rounded-full bg-neutral-100 flex items-center justify-center font-semibold text-sm text-neutral-700">
+                      {(c.name || '').split(' ').map(n => n[0]).slice(0, 2).join('')}
                     </div>
-                    <p className="text-xs text-neutral-500 truncate">{c.vehicle} {c.location ? `· ${c.location}` : ''}</p>
-                  </div>
-                  <div className="text-right hidden sm:block">
-                    <p className="text-sm font-medium">{formatDate(c.delivery_date)}</p>
-                    <p className="text-xs text-neutral-500">{c.salesperson || '—'}</p>
-                  </div>
-                  <Badge className={`${stageClass(c.stage)} font-medium border-0`}>{c.stage}</Badge>
-                </Link>
-              ))}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-sm truncate">{c.name}</p>
+                        {readiness.isReady && (
+                          <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 border text-[10px] font-bold">
+                            Ready For Delivery
+                          </Badge>
+                        )}
+                        {c.arrived && c.stage !== 'Delivered' && <Badge className="bg-amber-100 text-amber-800 border-0 text-[10px]">Arrived</Badge>}
+                      </div>
+                      <p className="text-xs text-neutral-500 truncate">{c.vehicle} {c.location ? `· ${c.location}` : ''}</p>
+                    </div>
+                    <div className="text-right hidden sm:block">
+                      <p className="text-sm font-medium">{formatDate(c.delivery_date)}</p>
+                      <p className="text-xs text-neutral-500">{c.salesperson || '—'}</p>
+                    </div>
+                    <Badge className={`${stageClass(c.stage)} font-medium border-0`}>{c.stage}</Badge>
+                  </Link>
+                );
+              })}
             </div>
           </CardContent>
         </Card>

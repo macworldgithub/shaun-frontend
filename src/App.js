@@ -9,6 +9,7 @@ import ChangePassword from './pages/ChangePassword';
 import Dashboard from './pages/Dashboard';
 import Clients from './pages/Clients';
 import ClientDetail from './pages/ClientDetail';
+import DeliveryInspection from './pages/DeliveryInspection';
 import Deliveries from './pages/Deliveries';
 import Messages from './pages/Messages';
 import Templates from './pages/Templates';
@@ -39,6 +40,7 @@ function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/clients" element={<Clients />} />
               <Route path="/clients/:id" element={<ClientDetail />} />
+              <Route path="/clients/:id/inspection" element={<DeliveryInspection />} />
               <Route path="/my-clients" element={<MyClients />} />
               <Route path="/deliveries" element={<Deliveries />} />
               <Route path="/messages" element={<Messages />} />

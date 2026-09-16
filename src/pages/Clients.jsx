@@ -12,7 +12,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { clientsApi, adminApi } from '../lib/api';
 import { deliveryStages, contactStatuses, siteLocations } from '../constants';
-import { stageClass, formatDate } from '../lib/utils';
+import { stageClass, formatDate, getReadinessDetails } from '../lib/utils';
 import { toast } from 'sonner';
 import ImportFromVYDialog from '../components/ImportFromVYDialog';
 import PaginationControls from '../components/PaginationControls';
@@ -60,6 +60,10 @@ export default function Clients() {
 
   const filterParam = params.get('filter');
 
+  const readyCount = useMemo(() => {
+    return clients.filter((c) => getReadinessDetails(c).isReady && c.stage !== 'Delivered').length;
+  }, [clients]);
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     const todayIso = new Date().toISOString().slice(0, 10);
@@ -71,7 +75,9 @@ export default function Clients() {
         (agentFilter === 'Unassigned' ? !c.assigned_agent_id : c.assigned_agent_id === agentFilter);
 
       let exceptionOk = true;
-      if (filterParam === 'overdue') {
+      if (filterParam === 'ready_for_delivery') {
+        exceptionOk = getReadinessDetails(c).isReady && c.stage !== 'Delivered';
+      } else if (filterParam === 'overdue') {
         exceptionOk = (c.arrived && c.stage !== 'Delivered') || (c.delivery_date && c.delivery_date < todayIso && c.stage !== 'Delivered');
       } else if (filterParam === 'trade_in') {
         exceptionOk = ['Expiring', 'Expired', 'At risk'].includes(c.trade_in_status) || c.trade_in_flag;
@@ -176,6 +182,25 @@ export default function Clients() {
             <button onClick={() => { params.delete('filter'); setParams(params); }} className="hover:text-red-600 font-bold ml-1">×</button>
           </Badge>
         )}
+        <Button
+          variant={filterParam === 'ready_for_delivery' ? "default" : "outline"}
+          size="sm"
+          onClick={() => {
+            if (filterParam === 'ready_for_delivery') {
+              params.delete('filter');
+            } else {
+              params.set('filter', 'ready_for_delivery');
+            }
+            setParams(params);
+          }}
+          className={`gap-1.5 text-xs font-semibold ${filterParam === 'ready_for_delivery' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'bg-white border-neutral-200 text-neutral-700'}`}
+        >
+          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+          Ready For Delivery
+          <Badge className={`ml-1 text-[10px] px-1 py-0 ${filterParam === 'ready_for_delivery' ? 'bg-emerald-800 text-white' : 'bg-neutral-100 text-neutral-700'}`}>
+            {readyCount}
+          </Badge>
+        </Button>
         <Select value={contactFilter} onValueChange={setContactFilter}>
           <SelectTrigger className="w-44 bg-white"><SelectValue placeholder="Contact status"/></SelectTrigger>
           <SelectContent>
@@ -215,11 +240,27 @@ export default function Clients() {
           )}
           {pagedClients.map((c) => {
             const arrivedPending = c.arrived && c.stage !== 'Delivered';
+            const readiness = getReadinessDetails(c);
             return (
-              <div key={c.id} onClick={() => navigate(`/clients/${c.id}`)} className={`grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-0 px-6 py-4 items-center hover:bg-neutral-50 cursor-pointer ${arrivedPending ? 'bg-amber-50/40 hover:bg-amber-50/60' : ''}`}>
+              <div
+                key={c.id}
+                onClick={() => navigate(`/clients/${c.id}`)}
+                className={`grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-0 px-6 py-4 items-center hover:bg-neutral-50 cursor-pointer transition-colors ${
+                  readiness.isReady
+                    ? 'bg-emerald-50/20 hover:bg-emerald-50/40'
+                    : arrivedPending
+                    ? 'bg-amber-50/40 hover:bg-amber-50/60'
+                    : ''
+                }`}
+              >
                 <div className="md:col-span-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold text-sm">{c.name}</p>
+                    {readiness.isReady && (
+                      <Badge className="bg-emerald-600 text-white font-bold text-[9px] px-1.5 py-0 h-4 border-0">
+                        Ready
+                      </Badge>
+                    )}
                     {arrivedPending && <Badge className="bg-amber-100 text-amber-800 border-0 text-[10px]"><AlertTriangle className="h-3 w-3 mr-1"/>Arrived</Badge>}
                   </div>
                   <div className="flex gap-3 text-xs text-neutral-500 mt-0.5">
@@ -235,13 +276,27 @@ export default function Clients() {
                 </div>
                 <div className="md:col-span-2 text-sm">{formatDate(c.delivery_date)}</div>
                 <div className="md:col-span-2 flex flex-col gap-1 items-start">
-                  <Badge className={`${stageClass(c.stage)} border-0 w-fit`}>{c.stage}</Badge>
+                  {readiness.isReady ? (
+                    <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 border font-bold text-[10px] flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                      Ready For Delivery
+                    </Badge>
+                  ) : (
+                    <Badge className={`${stageClass(c.stage)} border-0 w-fit`}>{c.stage}</Badge>
+                  )}
                   {c.contact_status && (
                     <Badge className={`${contactBadge[c.contact_status] || 'bg-neutral-100'} border-0 w-fit text-[10px]`}>
                       {c.contact_status === 'Contacted' ? <CheckCircle2 className="h-3 w-3 mr-1"/> : <MessageSquare className="h-3 w-3 mr-1"/>}
                       {c.contact_status}
                     </Badge>
                   )}
+                  {/* Mini readiness indicator */}
+                  <div className="flex items-center gap-0.5 text-[9px] font-mono mt-0.5">
+                    <span className={`px-1 rounded ${readiness.payment ? 'bg-emerald-100 text-emerald-800 font-bold' : 'bg-neutral-100 text-neutral-400'}`} title="Payment">P</span>
+                    <span className={`px-1 rounded ${readiness.tradeInDocs ? 'bg-emerald-100 text-emerald-800 font-bold' : 'bg-neutral-100 text-neutral-400'}`} title="Trade-in Docs">T</span>
+                    <span className={`px-1 rounded ${readiness.pdi ? 'bg-emerald-100 text-emerald-800 font-bold' : 'bg-neutral-100 text-neutral-400'}`} title="PDI">I</span>
+                    <span className={`px-1 rounded ${readiness.registrationDocs ? 'bg-emerald-100 text-emerald-800 font-bold' : 'bg-neutral-100 text-neutral-400'}`} title="Registration Docs">R</span>
+                  </div>
                   {c.trade_in_attached && c.trade_in_valid_until && (
                     (() => {
                       const daysLeft = Math.ceil((new Date(`${c.trade_in_valid_until}T23:59:59`) - new Date()) / 86400000);
