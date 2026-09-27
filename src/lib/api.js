@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'https://byd-panel.omnisuiteai.com');
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:4003' : 'https://sales-floor-backend.goodshowroom.com');
 export const API_BASE = `${BACKEND_URL}/api`;
-export const CRM_BASE_URL = process.env.REACT_APP_CRM_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://crm.omnisuiteai.com');
+export const CRM_BASE_URL = process.env.REACT_APP_CRM_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:4002' : 'https://crm.goodshowroom.com');
 
 const api = axios.create({ baseURL: API_BASE });
 
