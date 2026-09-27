@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Phone, Mail, Car, Calendar, User, Send, MessageSquare, CheckCircle2, Circle, MapPin, AlertTriangle, Plus, X, Wrench, FileText, Download, ShieldCheck, Sparkles, Layers, FileCheck } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, Car, Calendar, User, Send, MessageSquare, CheckCircle2, Circle, MapPin, AlertTriangle, Plus, X, Wrench, FileText, Download, ShieldCheck, Sparkles, Layers, FileCheck, ExternalLink, Link2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Separator } from '../components/ui/separator';
 import { Switch } from '../components/ui/switch';
 import { Progress } from '../components/ui/progress';
-import { clientsApi, smsApi, templatesApi, adminApi } from '../lib/api';
+import { clientsApi, smsApi, templatesApi, adminApi, CRM_BASE_URL } from '../lib/api';
 import { deliveryStages, contactStatuses, accessoryStatuses, checklistItems, registrationStatuses, handoverChecklistStatuses, tradeInStatuses, saleTypes, documentTypes, documentStatuses, activationStatuses, offerStatuses, yourWaySelections, siteLocations } from '../constants';
 import { stageClass, formatDate, formatDateTime, renderTemplate, getReadinessDetails } from '../lib/utils';
 import { toast } from 'sonner';
@@ -286,8 +286,39 @@ export default function ClientDetail() {
             <span className="flex items-center gap-1.5"><Car className="h-4 w-4 text-neutral-400"/>{client.vehicle} {client.rego ? `· ${client.rego}` : ''}</span>
             {client.location && <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4 text-neutral-400"/>{client.location}</span>}
           </div>
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            {client.crm_customer_id && (
+              <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200 font-mono gap-1">
+                <Link2 className="h-3 w-3 text-red-500" /> CRM: {client.crm_customer_id}
+              </Badge>
+            )}
+            {client.crm_opportunity_id && (
+              <Badge variant="outline" className="text-xs bg-neutral-100 text-neutral-700 border-neutral-200 font-mono">
+                Deal: {client.crm_opportunity_id}
+              </Badge>
+            )}
+            {client.vy_order_id && (
+              <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200 font-mono">
+                VY Order: #{client.vy_order_id}
+              </Badge>
+            )}
+            {client.salesperson && (
+              <Badge variant="outline" className="text-xs bg-slate-100 text-slate-700 border-slate-200">
+                Salesperson: {client.salesperson}
+              </Badge>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <a
+            href={`${CRM_BASE_URL}/?search=${encodeURIComponent(client.phone || client.name || '')}&customer_id=${encodeURIComponent(client.crm_customer_id || '')}&opportunity_id=${encodeURIComponent(client.crm_opportunity_id || '')}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Button variant="outline" className="bg-white border-neutral-300 hover:bg-neutral-50 text-neutral-800 text-xs font-semibold gap-1.5 shadow-sm">
+              <ExternalLink className="h-3.5 w-3.5 text-[#E11B22]" /> Open in Sales CRM
+            </Button>
+          </a>
           <Link to={`/clients/${id}/inspection`}>
             <Button className="bg-[#E11B22] hover:bg-[#c4161c] text-white text-xs font-bold gap-1.5 shadow-sm">
               <FileCheck className="h-4 w-4" /> Digital Delivery Inspection
