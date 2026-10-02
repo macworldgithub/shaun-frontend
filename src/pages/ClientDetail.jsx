@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Phone, Mail, Car, Calendar, User, Send, MessageSquare, CheckCircle2, Circle, MapPin, AlertTriangle, Plus, X, Wrench, FileText, Download, ShieldCheck, Sparkles, Layers, FileCheck, ExternalLink, Link2 } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, Car, Calendar, User, Send, MessageSquare, CheckCircle2, Circle, MapPin, AlertTriangle, Plus, X, Wrench, FileText, Download, ShieldCheck, Sparkles, Layers, FileCheck, ExternalLink, Link2, Truck, Clock, RefreshCw, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Separator } from '../components/ui/separator';
 import { Switch } from '../components/ui/switch';
 import { Progress } from '../components/ui/progress';
-import { clientsApi, smsApi, templatesApi, adminApi, CRM_BASE_URL } from '../lib/api';
+import { clientsApi, smsApi, templatesApi, adminApi, contractorApi, CRM_BASE_URL, CONTRACTOR_APP_URL } from '../lib/api';
 import { deliveryStages, contactStatuses, accessoryStatuses, checklistItems, registrationStatuses, handoverChecklistStatuses, tradeInStatuses, saleTypes, documentTypes, documentStatuses, activationStatuses, offerStatuses, yourWaySelections, siteLocations } from '../constants';
 import { stageClass, formatDate, formatDateTime, renderTemplate, getReadinessDetails } from '../lib/utils';
 import { toast } from 'sonner';
@@ -40,14 +40,17 @@ export default function ClientDetail() {
   const [checks, setChecks] = useState(() => {
     try { return JSON.parse(localStorage.getItem(`checks_${id}`)) || {}; } catch { return {}; }
   });
+  const [contractorJob, setContractorJob] = useState(null);
+  const [contractorLoading, setContractorLoading] = useState(false);
 
   const reload = useCallback(async () => {
-    const [c, m, t, u, matches] = await Promise.all([
+    const [c, m, t, u, matches, cJobs] = await Promise.all([
       clientsApi.get(id),
       smsApi.list({ client_id: id }),
       templatesApi.list(),
       adminApi.listUsers().catch(() => []),
       clientsApi.offerMatches(id).catch(() => []),
+      contractorApi.listJobsForClient(id).catch(() => []),
     ]);
     setClient(c);
     setMessages(m);
@@ -55,6 +58,21 @@ export default function ClientDetail() {
     setAgents(u.filter((x) => x.active));
     setOfferMatches(matches);
     setAftermarket(c.aftermarket_notes || '');
+    
+    // Find matching contractor job (by client_id or vin fallback)
+    if (Array.isArray(cJobs) && cJobs.length > 0) {
+      setContractorJob(cJobs[0]);
+    } else if (c?.vin) {
+      try {
+        const vinJobs = await contractorApi.listJobsForClient(null, c.vin);
+        setContractorJob(Array.isArray(vinJobs) && vinJobs.length > 0 ? vinJobs[0] : null);
+      } catch {
+        setContractorJob(null);
+      }
+    } else {
+      setContractorJob(null);
+    }
+
     setLoading(false);
   }, [id]);
 
@@ -145,6 +163,33 @@ export default function ClientDetail() {
   const saveAftermarket = async () => {
     await patch({ aftermarket_notes: aftermarket });
     toast.success('Aftermarket notes saved');
+  };
+
+  const allocateToContractor = async () => {
+    setContractorLoading(true);
+    try {
+      const newJob = await contractorApi.createFromClient(id);
+      toast.success('Successfully allocated to Contractor Hub!');
+      setContractorJob(newJob);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Failed to allocate job to contractor');
+    } finally {
+      setContractorLoading(false);
+    }
+  };
+
+  const syncContractorJob = async () => {
+    if (!contractorJob) return;
+    setContractorLoading(true);
+    try {
+      await contractorApi.syncJob(contractorJob.id);
+      toast.success('Contractor job synced with Delivery Centre!');
+      reload();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Failed to sync contractor job');
+    } finally {
+      setContractorLoading(false);
+    }
   };
 
   const addDocument = async () => {
@@ -715,6 +760,149 @@ export default function ClientDetail() {
               <Separator/>
               <Label className="text-xs font-semibold text-neutral-700 mb-1.5 block">Aftermarket notes</Label>
               <Textarea rows={2} placeholder="Anything still to be ordered or fitted…" value={aftermarket} onChange={(e) => setAftermarket(e.target.value)} onBlur={saveAftermarket}/>
+            </CardContent>
+          </Card>
+
+          <Card className="border-neutral-200">
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <Truck className="h-4 w-4 text-[#E11B22]" /> Contractor Job &amp; Prep Hub
+              </CardTitle>
+              {contractorJob ? (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={syncContractorJob}
+                    disabled={contractorLoading}
+                    className="text-xs h-8 gap-1.5"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${contractorLoading ? 'animate-spin' : ''}`} />
+                    Sync Status
+                  </Button>
+                  <a
+                    href={`${CONTRACTOR_APP_URL || 'https://byd-contractor-app.vercel.app'}/jobs/${contractorJob.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-[#E11B22] font-semibold hover:underline"
+                  >
+                    Open in Hub <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                </div>
+              ) : null}
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {contractorJob ? (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 bg-neutral-50 p-3 rounded-lg border border-neutral-200">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Status:</span>
+                        <Badge variant="outline" className={`font-semibold capitalize text-xs ${
+                          contractorJob.status === 'completed'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                            : contractorJob.status === 'blocked'
+                            ? 'bg-red-50 text-red-700 border-red-300'
+                            : 'bg-blue-50 text-blue-700 border-blue-300'
+                        }`}>
+                          {contractorJob.status?.replace('_', ' ') || 'New'}
+                        </Badge>
+                        <Badge variant="outline" className="text-[11px] capitalize">
+                          Priority: {contractorJob.priority || 'Normal'}
+                        </Badge>
+                        {contractorJob.is_urgent && (
+                          <Badge className="bg-red-600 text-white text-[11px]">URGENT</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-neutral-500">
+                        Assigned Contractor: <span className="font-semibold text-neutral-800">{contractorJob.assigned_contractor_name || 'Unassigned'}</span>
+                      </p>
+                    </div>
+                    <div className="text-right text-xs text-neutral-500">
+                      <div className="flex items-center justify-end gap-1 font-medium text-neutral-700">
+                        <Clock className="h-3.5 w-3.5 text-neutral-400" />
+                        <span>{Math.round(contractorJob.total_time_minutes || 0)} mins logged</span>
+                      </div>
+                      <p className="text-[11px] text-neutral-400 mt-0.5">
+                        Location: {contractorJob.current_location_name || contractorJob.site_location || 'Dealership'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {contractorJob.flagged_issues && contractorJob.flagged_issues.length > 0 && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs space-y-1">
+                      <div className="flex items-center gap-1.5 font-semibold text-red-800">
+                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                        <span>Flagged Issues / Blockers:</span>
+                      </div>
+                      {contractorJob.flagged_issues.map((issue, idx) => (
+                        <p key={idx} className="text-red-700 pl-5">
+                          • {issue.issue_type}: {issue.notes} ({issue.status})
+                        </p>
+                      ))}
+                    </div>
+                  )}
+
+                  {((contractorJob.tasks && contractorJob.tasks.length > 0) || (contractorJob.checklist && contractorJob.checklist.length > 0)) && (() => {
+                    const jobTasks = contractorJob.tasks || contractorJob.checklist || [];
+                    const completedCount = jobTasks.filter((t) => t.completed).length;
+                    const percent = jobTasks.length > 0 ? Math.round((completedCount / jobTasks.length) * 100) : 0;
+                    return (
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="font-semibold text-neutral-700">
+                            Prep Checklist ({completedCount} / {jobTasks.length} done)
+                          </span>
+                          <span className="text-neutral-500 font-medium">
+                            {percent}%
+                          </span>
+                        </div>
+                        <Progress value={percent} className="h-2" />
+                        <div className="divide-y divide-neutral-100 rounded-md border border-neutral-200 text-xs">
+                          {jobTasks.map((task, i) => (
+                            <div key={task.id || i} className="flex items-center justify-between px-3 py-2">
+                              <div className="flex items-center gap-2">
+                                {task.completed ? (
+                                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                                ) : (
+                                  <Circle className="h-4 w-4 text-neutral-300 shrink-0" />
+                                )}
+                                <span className={task.completed ? 'line-through text-neutral-400' : 'text-neutral-800 font-medium'}>
+                                  {task.label || task.title}
+                                </span>
+                              </div>
+                              {task.completed_by_name && (
+                                <span className="text-[11px] text-neutral-400">by {task.completed_by_name}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <div className="flex justify-between items-center text-[11px] text-neutral-400 pt-1">
+                    <span>Job ID: {contractorJob.id}</span>
+                    <span>Last synced: {formatDateTime(contractorJob.last_synced_at || contractorJob.updated_at)}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-neutral-200 bg-neutral-50/50 p-6 text-center">
+                  <Truck className="h-8 w-8 text-neutral-400 mx-auto mb-2" />
+                  <p className="text-sm font-semibold text-neutral-800">No Contractor Job Allocated</p>
+                  <p className="text-xs text-neutral-500 mt-1 max-w-md mx-auto">
+                    Dispatch this vehicle to the BYD Contractor Hub for window tinting, accessories fitting, detailing, and pre-delivery inspection.
+                  </p>
+                  <Button
+                    onClick={allocateToContractor}
+                    disabled={contractorLoading}
+                    className="mt-4 bg-[#E11B22] hover:bg-[#B81319] text-white text-xs h-9 gap-1.5"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {contractorLoading ? 'Allocating...' : 'Allocate to Contractor Hub'}
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
 

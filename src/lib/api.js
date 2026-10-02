@@ -1,8 +1,9 @@
 import axios from 'axios';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:4003' : 'https://sales-floor-backend.goodshowroom.com');
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:4003' : 'http://byd-panel.omnisuiteai.com');
 export const API_BASE = `${BACKEND_URL}/api`;
 export const CRM_BASE_URL = process.env.REACT_APP_CRM_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:4002' : 'https://crm.goodshowroom.com');
+export const CONTRACTOR_APP_URL = process.env.REACT_APP_CONTRACTOR_APP_URL || (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:5174' : 'https://byd-contractor-app.vercel.app');
 
 const api = axios.create({ baseURL: API_BASE });
 
@@ -165,6 +166,20 @@ export const offersApi = {
   activate: (id) => api.patch(`/clients/offers/${id}`, { active: true }).then((r) => r.data),
   refresh: () => api.post('/clients/offers/refresh').then((r) => r.data),
   websiteSnapshot: () => api.post('/clients/offers/website-snapshot').then((r) => r.data),
+};
+
+// ===== Contractor Jobs Integration (BYD Contractor App Scope §6) =====
+export const contractorApi = {
+  createFromClient: (clientId, data = {}) =>
+    api.post(`/contractor/integrations/from-client/${clientId}`, data).then((r) => r.data),
+  listJobsForClient: (clientId, vin) => {
+    const q = new URLSearchParams();
+    if (clientId) q.set('client_id', clientId);
+    if (vin) q.set('vin', vin);
+    return api.get(`/contractor/jobs?${q.toString()}`).then((r) => r.data);
+  },
+  syncJob: (jobId) =>
+    api.post(`/contractor/integrations/sync-to-client/${jobId}`).then((r) => r.data),
 };
 
 export default api;
