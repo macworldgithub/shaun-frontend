@@ -1,28 +1,37 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
-import { siteLocations, primaryDealershipSites } from '../constants';
+import { siteLocations as allSiteLocations, primaryDealershipSites as allPrimarySites } from '../constants';
+import { useAuth } from './AuthContext';
 
 const SiteContext = createContext(null);
 
 export function SiteProvider({ children }) {
-  const [activeSite, setActiveSiteState] = useState(() => {
+  const auth = useAuth();
+  const lockedSite = auth?.user?.locked_site || null;
+  const siteLocations = useMemo(() => (lockedSite ? [lockedSite] : allSiteLocations), [lockedSite]);
+  const primaryDealershipSites = useMemo(() => (lockedSite ? [lockedSite] : allPrimarySites), [lockedSite]);
+
+  const [savedSite, setActiveSiteState] = useState(() => {
     const saved = localStorage.getItem('active_site');
-    if (saved && siteLocations.includes(saved)) {
+    if (saved && allSiteLocations.includes(saved)) {
       return saved;
     }
     // If user previously had Fairfield or another outdated site, migrate to 'All Sites'
     return 'All Sites';
   });
+  // A site-locked user is always pinned to their own site
+  const activeSite = lockedSite || savedSite;
 
   const setActiveSite = useCallback((site) => {
+    if (lockedSite) return;
     setActiveSiteState(site);
     localStorage.setItem('active_site', site);
     // Dispatch custom event for any listeners
     window.dispatchEvent(new CustomEvent('site-filter-change', { detail: site }));
-  }, []);
+  }, [lockedSite]);
 
   useEffect(() => {
-    localStorage.setItem('active_site', activeSite);
-  }, [activeSite]);
+    if (!lockedSite) localStorage.setItem('active_site', activeSite);
+  }, [activeSite, lockedSite]);
 
   const isSiteMatch = useCallback((clientSite, siteToMatch = activeSite) => {
     if (!siteToMatch || siteToMatch === 'All Sites') return true;
@@ -51,7 +60,7 @@ export function SiteProvider({ children }) {
       isSiteMatch,
       filterClientsBySite,
     }),
-    [activeSite, setActiveSite, isSiteMatch, filterClientsBySite]
+    [activeSite, setActiveSite, siteLocations, primaryDealershipSites, isSiteMatch, filterClientsBySite]
   );
 
   return <SiteContext.Provider value={value}>{children}</SiteContext.Provider>;
@@ -65,8 +74,8 @@ export const useSite = () => {
     return {
       activeSite: site,
       setActiveSite: (s) => localStorage.setItem('active_site', s),
-      siteLocations,
-      primaryDealershipSites,
+      siteLocations: allSiteLocations,
+      primaryDealershipSites: allPrimarySites,
       isSiteMatch: (clientSite) => !site || site === 'All Sites' || (clientSite && clientSite.toLowerCase().includes(site.toLowerCase().replace(/^byd\s+/i, ''))),
       filterClientsBySite: (list) => list || [],
     };
