@@ -1,18 +1,20 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Truck, ArrowUpRight, AlertTriangle, UserPlus, Phone, FileWarning, BadgeAlert, ClipboardCheck, RefreshCw, MessageSquare, FileText, Calendar, Target, ShieldAlert } from 'lucide-react';
+import { Truck, ArrowUpRight, AlertTriangle, UserPlus, Phone, FileWarning, BadgeAlert, ClipboardCheck, RefreshCw, MessageSquare, FileText, Calendar, Target, ShieldAlert, MapPin } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Progress } from '../components/ui/progress';
 import { adminApi, clientsApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useSite } from '../contexts/SiteContext';
 import { stageClass, formatDate, formatDateTime, getReadinessDetails } from '../lib/utils';
 import { deliveryStages } from '../constants';
 import { toast } from 'sonner';
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { activeSite, setActiveSite, siteLocations, filterClientsBySite } = useSite();
   const [stats, setStats] = useState(null);
   const [upcoming, setUpcoming] = useState([]);
   const [needsAttention, setNeedsAttention] = useState({ arrivedPending: [], notContacted: [] });
@@ -20,32 +22,41 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshingOffers, setRefreshingOffers] = useState(false);
 
-  const activeSite = localStorage.getItem('active_site') || 'Fairfield';
   const activeTeam = localStorage.getItem('active_team') || 'All Teams';
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [s, list, alertList] = await Promise.all([adminApi.stats(), clientsApi.list({}), clientsApi.alerts().catch(() => [])]);
+        setLoading(true);
+        const apiParams = {};
+        if (activeSite && activeSite !== 'All Sites') {
+          apiParams.site_location = activeSite;
+        }
+        const [s, list, alertList] = await Promise.all([
+          adminApi.stats(apiParams),
+          clientsApi.list(apiParams),
+          clientsApi.alerts().catch(() => [])
+        ]);
         if (cancelled) return;
         setStats(s);
         setAlerts(alertList);
-        const upcoming = [...list]
+        const filteredList = filterClientsBySite(list);
+        const upcomingList = [...filteredList]
           .filter((c) => c.stage !== 'Delivered')
           .sort((a, b) => (a.delivery_date || '').localeCompare(b.delivery_date || ''))
           .slice(0, 6);
-        setUpcoming(upcoming);
+        setUpcoming(upcomingList);
         setNeedsAttention({
-          arrivedPending: list.filter((c) => c.arrived && c.stage !== 'Delivered').slice(0, 5),
-          notContacted: list.filter((c) => c.contact_status === 'Not Contacted').slice(0, 5),
+          arrivedPending: filteredList.filter((c) => c.arrived && c.stage !== 'Delivered').slice(0, 5),
+          notContacted: filteredList.filter((c) => c.contact_status === 'Not Contacted').slice(0, 5),
         });
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [activeSite, filterClientsBySite]);
 
   const refreshOffers = async () => {
     setRefreshingOffers(true);
@@ -83,9 +94,27 @@ export default function Dashboard() {
             <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.name?.split(' ')[0]}</h1>
             <Badge variant="outline" className="text-xs bg-neutral-100">{activeTeam}</Badge>
           </div>
-          <p className="text-neutral-500 mt-1">Live operational metrics &amp; handover pipeline for BYD {activeSite}.</p>
+          <p className="text-neutral-500 mt-1">Live operational metrics &amp; handover pipeline for {activeSite === 'All Sites' ? 'all sites' : activeSite}.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center flex-wrap">
+          {/* Site Filter Pills */}
+          <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-neutral-200 shadow-sm mr-2">
+            <MapPin className="h-3.5 w-3.5 text-[#E11B22] ml-1.5" />
+            {siteLocations.map((site) => (
+              <button
+                key={site}
+                type="button"
+                onClick={() => setActiveSite(site)}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                  activeSite === site
+                    ? 'bg-[#E11B22] text-white shadow-sm font-semibold'
+                    : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
+                }`}
+              >
+                {site}
+              </button>
+            ))}
+          </div>
           <Button variant="outline" className="gap-2" onClick={refreshOffers} disabled={refreshingOffers}><RefreshCw className={`h-4 w-4 ${refreshingOffers ? 'animate-spin' : ''}`}/>Refresh offers</Button>
           <Link to="/deliveries"><Button className="bg-[#E11B22] text-white hover:bg-[#B81319] gap-2">View calendar <ArrowUpRight className="h-4 w-4"/></Button></Link>
         </div>

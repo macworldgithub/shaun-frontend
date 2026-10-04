@@ -125,7 +125,7 @@ export const adminApi = {
   resetPassword: (id) => api.post(`/admin/users/${id}/reset-password`).then((r) => r.data),
   deactivateUser: (id) => api.delete(`/admin/users/${id}`).then((r) => r.data),
   audit: (limit = 200) => api.get('/admin/audit', { params: { limit } }).then((r) => r.data),
-  stats: () => api.get('/admin/stats').then((r) => r.data),
+  stats: (params) => api.get('/admin/stats', { params }).then((r) => r.data),
   importHarmony: (file, { replace = true, dryRun = false } = {}) => {
     const fd = new FormData();
     fd.append('file', file);

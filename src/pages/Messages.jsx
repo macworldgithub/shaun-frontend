@@ -11,9 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { clientsApi, smsApi, templatesApi } from '../lib/api';
 import { formatDateTime } from '../lib/utils';
 import { Link } from 'react-router-dom';
+import { useSite } from '../contexts/SiteContext';
 import { toast } from 'sonner';
 
 export default function Messages() {
+  const { activeSite } = useSite();
   const [tab, setTab] = useState('inbox');
   const [messages, setMessages] = useState([]);
   const [clients, setClients] = useState([]);
@@ -24,13 +26,17 @@ export default function Messages() {
   const [sending, setSending] = useState(false);
 
   const reload = useCallback(async () => {
+    const siteParams = {};
+    if (activeSite && activeSite !== 'All Sites') {
+      siteParams.site_location = activeSite;
+    }
     const [m, c, t] = await Promise.all([
       smsApi.list({ limit: 200 }),
-      clientsApi.list({}),
+      clientsApi.list(siteParams),
       templatesApi.list(),
     ]);
     setMessages(m); setClients(c); setTemplates(t);
-  }, []);
+  }, [activeSite]);
 
   useEffect(() => { reload(); }, [reload]);
 

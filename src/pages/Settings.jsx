@@ -9,6 +9,7 @@ import { Separator } from '../components/ui/separator';
 import { CheckCircle2 } from 'lucide-react';
 import { adminApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useSite } from '../contexts/SiteContext';
 
 export default function Settings() {
   const { user } = useAuth();
@@ -23,7 +24,7 @@ export default function Settings() {
   }, []);
   useEffect(() => { reload(); }, [reload]);
 
-  const [activeSite, setActiveSite] = useState(() => localStorage.getItem('active_site') || 'Fairfield');
+  const { activeSite } = useSite();
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -35,9 +36,9 @@ export default function Settings() {
       <Card className="border-neutral-200">
         <CardHeader><CardTitle className="text-base font-semibold">Dealership profile ({activeSite})</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-2 gap-4">
-          <Field label="Active Site Location" defaultValue={`BYD ${activeSite} Delivery Centre`}/>
-          <Field label="Brand SMS Sender" defaultValue={`BYD${activeSite.toUpperCase().slice(0, 4)}`}/>
-          <Field label="Contact Email" defaultValue={`deliveries@byd${activeSite.toLowerCase()}.com.au`}/>
+          <Field label="Active Site Location" defaultValue={`${activeSite.startsWith('BYD') || activeSite.startsWith('Denza') ? activeSite : `BYD ${activeSite}`} Delivery Centre`}/>
+          <Field label="Brand SMS Sender" defaultValue={`BYD${activeSite.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4)}`}/>
+          <Field label="Contact Email" defaultValue={`deliveries@${activeSite.toLowerCase().replace(/[^a-z]/g, '')}.com.au`}/>
           <Field label="Phone" defaultValue="+61 3 9000 1234"/>
           <Field label="Address" full defaultValue={`${activeSite} Delivery Centre, Australia`}/>
         </CardContent>

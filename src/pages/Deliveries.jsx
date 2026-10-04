@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, List, Clock, CheckCircle2, AlertCircle, Wrench, FileCheck, Filter, ShieldCheck, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, List, Clock, CheckCircle2, AlertCircle, Wrench, FileCheck, Filter, ShieldCheck, Sparkles, MapPin } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { clientsApi } from '../lib/api';
 import { deliveryStages, teamProfiles } from '../constants';
+import { useSite } from '../contexts/SiteContext';
 import { stageClass, formatDate, getReadinessDetails } from '../lib/utils';
 
 function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
@@ -17,6 +18,7 @@ const DAILY_TARGET = 10;
 
 export default function Deliveries() {
   const navigate = useNavigate();
+  const { activeSite, setActiveSite, siteLocations, filterClientsBySite } = useSite();
   const [clients, setClients] = useState([]);
   const [view, setView] = useState('calendar');
   const [cursor, setCursor] = useState(startOfMonth(new Date()));
@@ -25,15 +27,25 @@ export default function Deliveries() {
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
-    setClients(await clientsApi.list({}));
+    setLoading(true);
+    const params = {};
+    if (activeSite && activeSite !== 'All Sites') {
+      params.site_location = activeSite;
+    }
+    const list = await clientsApi.list(params);
+    setClients(list);
     setLoading(false);
-  }, []);
+  }, [activeSite]);
+
   useEffect(() => { reload(); }, [reload]);
 
   const displayClients = useMemo(() => {
-    if (!onlyReady) return clients;
-    return clients.filter((c) => getReadinessDetails(c).isReady);
-  }, [clients, onlyReady]);
+    let list = filterClientsBySite(clients, activeSite);
+    if (onlyReady) {
+      list = list.filter((c) => getReadinessDetails(c).isReady);
+    }
+    return list;
+  }, [clients, onlyReady, filterClientsBySite, activeSite]);
 
   const readyCount = useMemo(() => {
     return clients.filter((c) => getReadinessDetails(c).isReady && c.stage !== 'Delivered').length;
@@ -81,6 +93,20 @@ export default function Deliveries() {
               {readyCount}
             </Badge>
           </Button>
+          {/* Site Selector */}
+          <div className="flex items-center gap-1.5 bg-white border border-neutral-200 px-3 py-1.5 rounded-lg text-xs font-semibold">
+            <MapPin className="h-3.5 w-3.5 text-[#E11B22]" />
+            <Select value={activeSite} onValueChange={setActiveSite}>
+              <SelectTrigger className="h-6 border-0 bg-transparent shadow-none p-0 text-xs font-bold focus:ring-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="end">
+                {siteLocations.map((site) => (
+                  <SelectItem key={site} value={site}>{site}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex items-center gap-1.5 bg-white border border-neutral-200 px-3 py-1.5 rounded-lg text-xs font-semibold">
             <Filter className="h-3.5 w-3.5 text-neutral-400" />
             <Select value={teamFilter} onValueChange={setTeamFilter}>

@@ -7,23 +7,31 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs'
 import { Button } from '../components/ui/button';
 import { clientsApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useSite } from '../contexts/SiteContext';
 import { stageClass, formatDate } from '../lib/utils';
 import PaginationControls from '../components/PaginationControls';
 
 export default function MyClients() {
   const { user } = useAuth();
+  const { activeSite, filterClientsBySite } = useSite();
   const [mine, setMine] = useState([]);
   const [unassigned, setUnassigned] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const reload = useCallback(async () => {
     setLoading(true);
+    const siteParams = {};
+    if (activeSite && activeSite !== 'All Sites') {
+      siteParams.site_location = activeSite;
+    }
     const [m, u] = await Promise.all([
-      clientsApi.list({ mine: true }),
-      clientsApi.list({ unassigned: true }),
+      clientsApi.list({ mine: true, ...siteParams }),
+      clientsApi.list({ unassigned: true, ...siteParams }),
     ]);
-    setMine(m); setUnassigned(u); setLoading(false);
-  }, []);
+    setMine(filterClientsBySite(m, activeSite));
+    setUnassigned(filterClientsBySite(u, activeSite));
+    setLoading(false);
+  }, [activeSite, filterClientsBySite]);
 
   useEffect(() => { reload(); }, [reload]);
 
@@ -34,9 +42,18 @@ export default function MyClients() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">My clients</h1>
-        <p className="text-neutral-500 mt-1">Your assigned deliveries plus the open queue you can claim from.</p>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">My clients</h1>
+          <p className="text-neutral-500 mt-1">
+            Your assigned deliveries plus the open queue you can claim from ({activeSite === 'All Sites' ? 'all sites' : activeSite}).
+          </p>
+        </div>
+        {activeSite !== 'All Sites' && (
+          <Badge variant="outline" className="bg-white border-neutral-300 text-neutral-700 gap-1.5 py-1 px-3">
+            <MapPin className="h-3.5 w-3.5 text-[#E11B22]" /> Filtered: {activeSite}
+          </Badge>
+        )}
       </div>
 
       <Tabs defaultValue="mine">

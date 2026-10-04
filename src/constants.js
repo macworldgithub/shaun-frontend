@@ -71,7 +71,17 @@ export const accessoryStatuses = [
   'Fitted',
 ];
 
-export const siteLocations = ['Fairfield', 'Melbourne', 'Sydney', 'Brisbane', 'Perth', 'Adelaide'];
+export const siteLocations = [
+  'All Sites',
+  'BYD Caroline Springs',
+  'BYD Nunawading',
+  'Denza Melbourne',
+];
+export const primaryDealershipSites = [
+  'BYD Caroline Springs',
+  'BYD Nunawading',
+  'Denza Melbourne',
+];
 export const teamProfiles = ['Booking Team', 'Handover Team', 'All Teams'];
 
 export const checklistItems = [

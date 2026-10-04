@@ -948,9 +948,9 @@ export default function ClientDetail() {
             <CardContent className="space-y-3 text-xs">
               <div>
                 <Label className="text-[11px] font-semibold text-neutral-600 mb-1 block">Dealership Site Location</Label>
-                <Select value={client.site_location || 'Fairfield'} onValueChange={(v) => patch({ site_location: v })}>
+                <Select value={client.site_location || 'BYD Caroline Springs'} onValueChange={(v) => patch({ site_location: v })}>
                   <SelectTrigger className="h-8 text-xs bg-white"><SelectValue/></SelectTrigger>
-                  <SelectContent>{siteLocations.map((site) => <SelectItem key={site} value={site}>{site}</SelectItem>)}</SelectContent>
+                  <SelectContent>{siteLocations.filter((s) => s !== 'All Sites').map((site) => <SelectItem key={site} value={site}>{site}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
 

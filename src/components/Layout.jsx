@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from './ui/badge';
 import { cn } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
-import { siteLocations, teamProfiles } from '../constants';
+import { useSite } from '../contexts/SiteContext';
 
 const mainNav = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -33,13 +33,9 @@ const adminNav = [
 export default function Layout() {
   const navigate = useNavigate();
   const { user, isAdmin, logout } = useAuth();
+  const { activeSite, setActiveSite, siteLocations } = useSite();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [activeSite, setActiveSite] = useState(() => localStorage.getItem('active_site') || 'Fairfield');
   const [activeTeam, setActiveTeam] = useState(() => localStorage.getItem('active_team') || 'All Teams');
-
-  useEffect(() => {
-    localStorage.setItem('active_site', activeSite);
-  }, [activeSite]);
 
   useEffect(() => {
     localStorage.setItem('active_team', activeTeam);
@@ -67,7 +63,9 @@ export default function Layout() {
             <img src="/delivery-centre-logo.svg" alt="Delivery Centre" className="h-10 w-10" />
             <div className="leading-tight min-w-0">
               <p className="text-[10px] font-bold tracking-[0.18em] text-[#E11B22]">DELIVERY CENTRE</p>
-              <p className="font-bold text-[15px] tracking-tight text-neutral-900 truncate">BYD {activeSite}</p>
+              <p className="font-bold text-[15px] tracking-tight text-neutral-900 truncate">
+                {activeSite === 'All Sites' ? 'All Sites' : (activeSite.startsWith('BYD') || activeSite.startsWith('Denza')) ? activeSite : `BYD ${activeSite}`}
+              </p>
               <p className="font-semibold text-[11px] text-neutral-500">{activeTeam}</p>
             </div>
             <Button variant="ghost" size="icon" className="ml-auto md:hidden" aria-label="Close navigation" onClick={closeMobileNav}>
@@ -154,15 +152,18 @@ export default function Layout() {
 
           <div className="flex items-center gap-2 ml-auto shrink-0">
             {/* Site selector */}
-            <div className="flex items-center gap-1 bg-neutral-100 px-2 py-1 rounded-md text-xs">
-              <MapPin className="h-3.5 w-3.5 text-neutral-500" />
+            <div className="flex items-center gap-1.5 bg-neutral-100 hover:bg-neutral-200/80 px-2.5 py-1 rounded-md text-xs transition-colors border border-neutral-200">
+              <MapPin className="h-3.5 w-3.5 text-[#E11B22]" />
+              <span className="text-[11px] font-medium text-neutral-500 hidden lg:inline">Site:</span>
               <Select value={activeSite} onValueChange={setActiveSite}>
-                <SelectTrigger className="h-7 border-0 bg-transparent shadow-none p-0 text-xs font-semibold focus:ring-0">
+                <SelectTrigger className="h-7 border-0 bg-transparent shadow-none p-0 text-xs font-semibold focus:ring-0 text-neutral-900">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent align="end">
+                <SelectContent align="end" className="w-52">
                   {siteLocations.map((site) => (
-                    <SelectItem key={site} value={site}>{site}</SelectItem>
+                    <SelectItem key={site} value={site}>
+                      <span className={site === 'All Sites' ? 'font-bold' : ''}>{site}</span>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -190,7 +191,7 @@ export default function Layout() {
           </div>
         </header>
         <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 fade-in">
-          <Outlet />
+          <Outlet context={{ activeSite, setActiveSite, activeTeam, setActiveTeam }} />
         </main>
       </div>
     </div>

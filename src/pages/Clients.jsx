@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Search, Phone, Sparkles, MapPin, AlertTriangle, CheckCircle2, MessageSquare } from 'lucide-react';
+import { Plus, Search, Phone, Sparkles, MapPin, AlertTriangle, CheckCircle2, MessageSquare, Building2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card } from '../components/ui/card';
@@ -11,13 +11,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Textarea } from '../components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { clientsApi, adminApi } from '../lib/api';
-import { deliveryStages, contactStatuses, siteLocations } from '../constants';
+import { deliveryStages, contactStatuses } from '../constants';
 import { stageClass, formatDate, getReadinessDetails } from '../lib/utils';
 import { toast } from 'sonner';
 import ImportFromVYDialog from '../components/ImportFromVYDialog';
 import PaginationControls from '../components/PaginationControls';
+import { useSite } from '../contexts/SiteContext';
 
-const empty = { name: '', phone: '', email: '', vehicle: '', rego: '', vin: '', delivery_date: '', stage: 'Scheduled', salesperson: '', secondary_salesperson: '', delivery_consultant: '', handover_specialist: '', site_location: 'Fairfield', notes: '', location: '', address: '' };
+const empty = { name: '', phone: '', email: '', vehicle: '', rego: '', vin: '', delivery_date: '', stage: 'Scheduled', salesperson: '', secondary_salesperson: '', delivery_consultant: '', handover_specialist: '', site_location: 'BYD Caroline Springs', notes: '', location: '', address: '' };
 
 const contactBadge = {
   'Not Contacted': 'bg-rose-100 text-rose-700',
@@ -29,6 +30,7 @@ const contactBadge = {
 export default function Clients() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
+  const { activeSite, setActiveSite, siteLocations, isSiteMatch } = useSite();
   const [clients, setClients] = useState([]);
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -44,10 +46,15 @@ export default function Clients() {
   const pageSize = 20;
 
   const reload = useCallback(async () => {
-    const list = await clientsApi.list({});
+    setLoading(true);
+    const apiParams = {};
+    if (activeSite && activeSite !== 'All Sites') {
+      apiParams.site_location = activeSite;
+    }
+    const list = await clientsApi.list(apiParams);
     setClients(list);
     setLoading(false);
-  }, []);
+  }, [activeSite]);
 
   useEffect(() => {
     reload();
@@ -68,11 +75,12 @@ export default function Clients() {
     const q = search.toLowerCase();
     const todayIso = new Date().toISOString().slice(0, 10);
     return clients.filter((c) => {
-      const matches = !q || c.name.toLowerCase().includes(q) || c.vehicle.toLowerCase().includes(q) || (c.rego || '').toLowerCase().includes(q) || (c.phone || '').includes(q);
+      const matches = !q || c.name.toLowerCase().includes(q) || c.vehicle.toLowerCase().includes(q) || (c.rego || '').toLowerCase().includes(q) || (c.phone || '').includes(q) || (c.vin || '').toLowerCase().includes(q);
       const stageOk = stageFilter === 'All' || c.stage === stageFilter;
       const contactOk = contactFilter === 'All' || c.contact_status === contactFilter;
       const agentOk = agentFilter === 'All' ||
         (agentFilter === 'Unassigned' ? !c.assigned_agent_id : c.assigned_agent_id === agentFilter);
+      const siteOk = isSiteMatch(c.site_location, activeSite);
 
       let exceptionOk = true;
       if (filterParam === 'ready_for_delivery') {
@@ -87,9 +95,9 @@ export default function Clients() {
         exceptionOk = ['Requested', 'Partial'].includes(c.document_completeness);
       }
 
-      return matches && stageOk && contactOk && agentOk && exceptionOk;
+      return matches && stageOk && contactOk && agentOk && siteOk && exceptionOk;
     });
-  }, [clients, search, stageFilter, contactFilter, agentFilter, filterParam]);
+  }, [clients, search, stageFilter, contactFilter, agentFilter, filterParam, isSiteMatch, activeSite]);
 
   const agentMap = useMemo(() => {
     const m = {};
@@ -97,7 +105,7 @@ export default function Clients() {
     return m;
   }, [agents]);
 
-  useEffect(() => { setPage(1); }, [search, stageFilter, contactFilter, agentFilter]);
+  useEffect(() => { setPage(1); }, [search, stageFilter, contactFilter, agentFilter, activeSite]);
 
   const pagedClients = useMemo(
     () => filtered.slice((page - 1) * pageSize, page * pageSize),
@@ -140,9 +148,9 @@ export default function Clients() {
                 <Field label="Email"><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
                 <Field label="Vehicle"><Input placeholder="BYD Atto 3" value={form.vehicle} onChange={(e) => setForm({ ...form, vehicle: e.target.value })} /></Field>
                 <Field label="Dealership Site Location">
-                  <Select value={form.site_location || 'Fairfield'} onValueChange={(v) => setForm({ ...form, site_location: v })}>
+                  <Select value={form.site_location || (activeSite !== 'All Sites' ? activeSite : 'BYD Caroline Springs')} onValueChange={(v) => setForm({ ...form, site_location: v })}>
                     <SelectTrigger><SelectValue/></SelectTrigger>
-                    <SelectContent>{siteLocations.map((site) => <SelectItem key={site} value={site}>{site}</SelectItem>)}</SelectContent>
+                    <SelectContent>{siteLocations.filter((s) => s !== 'All Sites').map((site) => <SelectItem key={site} value={site}>{site}</SelectItem>)}</SelectContent>
                   </Select>
                 </Field>
                 <Field label="Rego"><Input value={form.rego} onChange={(e) => setForm({ ...form, rego: e.target.value })} /></Field>
@@ -170,6 +178,37 @@ export default function Clients() {
       </div>
 
       <ImportFromVYDialog open={importOpen} onOpenChange={setImportOpen} onImported={reload} />
+
+      {/* Site Filter Pills */}
+      <div className="flex items-center gap-2.5 flex-wrap bg-white p-3 rounded-xl border border-neutral-200 shadow-sm">
+        <span className="text-xs font-bold text-neutral-500 uppercase tracking-wider flex items-center gap-1.5 px-1">
+          <MapPin className="h-4 w-4 text-[#E11B22]" /> Dealership Site:
+        </span>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {siteLocations.map((site) => {
+            const isSelected = activeSite === site;
+            return (
+              <button
+                key={site}
+                type="button"
+                onClick={() => setActiveSite(site)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center gap-2 cursor-pointer ${
+                  isSelected
+                    ? 'bg-[#E11B22] text-white shadow-sm font-semibold'
+                    : 'bg-neutral-100 hover:bg-neutral-200 text-neutral-700'
+                }`}
+              >
+                <span>{site}</span>
+                {isSelected && (
+                  <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded-full font-mono text-white">
+                    Active
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[260px] max-w-md">
@@ -236,7 +275,9 @@ export default function Clients() {
         <div className="divide-y divide-neutral-100">
           {loading && <div className="px-6 py-8 text-center text-neutral-500 text-sm">Loading…</div>}
           {!loading && filtered.length === 0 && (
-            <div className="px-6 py-12 text-center text-neutral-500 text-sm">No clients match your filters.</div>
+            <div className="px-6 py-12 text-center text-neutral-500 text-sm">
+              No clients match your filters for {activeSite === 'All Sites' ? 'all sites' : activeSite}.
+            </div>
           )}
           {pagedClients.map((c) => {
             const arrivedPending = c.arrived && c.stage !== 'Delivered';
@@ -268,10 +309,17 @@ export default function Clients() {
                   </div>
                 </div>
                 <div className="md:col-span-3 text-sm">
-                  <p className="font-medium">{c.vehicle}</p>
-                  <p className="text-xs text-neutral-500 flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="font-medium">{c.vehicle}</p>
+                    {c.site_location && (
+                      <Badge variant="outline" className="text-[10px] py-0 px-1.5 bg-neutral-100 text-neutral-700 border-neutral-300 font-medium">
+                        {c.site_location}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-neutral-500 flex items-center gap-1.5 mt-0.5">
                     {c.location && <><MapPin className="h-3 w-3"/> {c.location}</>}
-                    {c.rego && !c.location && <span>{c.rego}</span>}
+                    {c.rego && <span>· Rego: {c.rego}</span>}
                   </p>
                 </div>
                 <div className="md:col-span-2 text-sm">{formatDate(c.delivery_date)}</div>
