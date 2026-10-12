@@ -27,6 +27,7 @@ export default function ClientDetail() {
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [smsBody, setSmsBody] = useState('');
+  const [sendingSms, setSendingSms] = useState(false);
   const [comment, setComment] = useState('');
   const [accessoryName, setAccessoryName] = useState('');
   const [aftermarket, setAftermarket] = useState('');
@@ -77,6 +78,20 @@ export default function ClientDetail() {
   }, [id]);
 
   useEffect(() => { reload(); }, [reload]);
+  useEffect(() => {
+    let active = true;
+    let pending = false;
+    const refresh = async () => {
+      if (pending || document.visibilityState !== 'visible') return;
+      pending = true;
+      try { const rows = await smsApi.list({ client_id: id }); if (active) setMessages(rows); }
+      catch (error) { console.error('Message refresh failed', error); }
+      finally { pending = false; }
+    };
+    const timer = window.setInterval(refresh, 5000);
+    window.addEventListener('focus', refresh);
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener('focus', refresh); };
+  }, [id]);
 
   const agentMap = useMemo(() => Object.fromEntries(agents.map((a) => [a.id, a.name])), [agents]);
 
@@ -97,15 +112,18 @@ export default function ClientDetail() {
   };
 
   const sendSms = async () => {
+    if (sendingSms) return;
     if (!smsBody.trim()) { toast.error('Message cannot be empty'); return; }
+    setSendingSms(true);
     try {
-      await smsApi.send({ client_id: id, body: smsBody });
-      toast.success('SMS queued');
+      const result = await smsApi.send({ client_id: id, body: smsBody });
+      if (['failed', 'error', 'unconfigured', 'blocked'].includes(result.status)) throw new Error('SMS could not be sent');
+      toast.success(result.status === 'simulated' ? 'SMS simulated' : 'SMS queued');
       setSmsBody('');
       reload();
     } catch (e) {
-      toast.error(e?.response?.data?.detail || 'SMS failed');
-    }
+      toast.error(e?.response?.data?.detail || e?.message || 'SMS failed');
+    } finally { setSendingSms(false); }
   };
 
   const insertTemplate = (tplId) => {
@@ -706,7 +724,7 @@ export default function ClientDetail() {
               <Textarea rows={4} placeholder={`Message to ${client.phone}…`} value={smsBody} onChange={(e) => setSmsBody(e.target.value)} />
               <div className="flex items-center justify-between text-xs text-neutral-500">
                 <span>{smsBody.length} chars · {Math.ceil(smsBody.length / SMS_SEGMENT_CHARS) || 1} SMS segment</span>
-                <Button onClick={sendSms} className="bg-[#E11B22] hover:bg-[#B81319] text-white">Send SMS</Button>
+                <Button onClick={sendSms} disabled={sendingSms || !smsBody.trim()} className="bg-[#E11B22] hover:bg-[#B81319] text-white">Send SMS</Button>
               </div>
             </CardContent>
           </Card>

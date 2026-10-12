@@ -24,6 +24,10 @@ export default function Messages() {
   const [selected, setSelected] = useState({});
   const [bulkBody, setBulkBody] = useState('');
   const [sending, setSending] = useState(false);
+  const [threadPhone, setThreadPhone] = useState('');
+  const [threadMessages, setThreadMessages] = useState([]);
+  const [replyBody, setReplyBody] = useState('');
+  const [replySending, setReplySending] = useState(false);
 
   const reload = useCallback(async () => {
     const siteParams = {};
@@ -31,27 +35,85 @@ export default function Messages() {
       siteParams.site_location = activeSite;
     }
     const [m, c, t] = await Promise.all([
-      smsApi.list({ limit: 200 }),
+      smsApi.list({ limit: 200, ...siteParams }),
       clientsApi.list(siteParams),
       templatesApi.list(),
     ]);
     setMessages(m); setClients(c); setTemplates(t);
   }, [activeSite]);
 
-  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => {
+    let active = true;
+    let pending = false;
+    const refresh = async () => {
+      if (pending || document.visibilityState !== 'visible') return;
+      pending = true;
+      try {
+        const rows = await smsApi.list({ limit: 200, site_location: activeSite });
+        if (active) setMessages(rows);
+      } catch (error) { console.error('Message refresh failed', error); }
+      finally { pending = false; }
+    };
+    setMessages([]);
+    reload().catch(() => toast.error('Could not load messages'));
+    const timer = window.setInterval(refresh, 5000);
+    window.addEventListener('focus', refresh);
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener('focus', refresh); };
+  }, [reload, activeSite]);
+
+  useEffect(() => {
+    setThreadPhone(''); setThreadMessages([]); setReplyBody('');
+  }, [activeSite]);
+
+  useEffect(() => {
+    if (!threadPhone) return;
+    let active = true;
+    let pending = false;
+    const refresh = async () => {
+      if (pending || document.visibilityState !== 'visible') return;
+      pending = true;
+      try {
+        const rows = await smsApi.list({ phone: threadPhone, site_location: activeSite, limit: 1000 });
+        if (active) setThreadMessages(rows);
+      } catch (error) { if (active) toast.error('Could not load this conversation'); }
+      finally { pending = false; }
+    };
+    setThreadMessages([]);
+    refresh();
+    const timer = window.setInterval(refresh, 5000);
+    window.addEventListener('focus', refresh);
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener('focus', refresh); };
+  }, [threadPhone, activeSite]);
 
   const conversations = useMemo(() => {
     const map = {};
     messages.forEach((m) => {
-      const key = m.client_id || `phone_${m.phone}`;
+      const key = 'phone_' + (m.phone || '').replace(/\D/g, '').replace(/^0/, '61');
       if (!map[key]) map[key] = { key, clientId: m.client_id, clientName: m.client_name || m.phone, phone: m.phone, last: m, count: 0 };
       map[key].count += 1;
+      if (!map[key].clientId && m.client_id) map[key].clientId = m.client_id;
       if (new Date(m.sent_at) > new Date(map[key].last.sent_at)) map[key].last = m;
     });
     return Object.values(map)
       .sort((a, b) => new Date(b.last.sent_at) - new Date(a.last.sent_at))
       .filter((c) => !search || (c.clientName || '').toLowerCase().includes(search.toLowerCase()));
   }, [messages, search]);
+
+  const openThread = conversations.find(c => c.phone === threadPhone);
+  const sendReply = async () => {
+    if (replySending || !replyBody.trim() || !threadPhone) return;
+    setReplySending(true);
+    try {
+      const site = activeSite && activeSite !== 'All Sites' ? activeSite : openThread?.last?.site;
+      const result = await smsApi.send({ phone: threadPhone, body: replyBody.trim(), ...(site ? { site } : {}) });
+      if (['failed', 'error', 'unconfigured', 'blocked'].includes(result.status)) throw new Error('SMS could not be sent');
+      setReplyBody('');
+      toast.success(result.status === 'simulated' ? 'SMS simulated' : 'SMS queued');
+      setThreadMessages(await smsApi.list({ phone: threadPhone, site_location: activeSite, limit: 1000 }));
+      reload();
+    } catch (error) { toast.error(error?.response?.data?.detail || error.message || 'SMS failed'); }
+    finally { setReplySending(false); }
+  };
 
   const selectedIds = Object.keys(selected).filter((k) => selected[k]);
 
@@ -97,7 +159,7 @@ export default function Messages() {
             <div className="divide-y divide-neutral-100">
               {conversations.length === 0 && <p className="text-center text-sm text-neutral-500 py-12">No conversations yet.</p>}
               {conversations.map((c) => (
-                <Link to={c.clientId ? `/clients/${c.clientId}` : '/messages'} key={c.key} className="flex items-center gap-4 px-6 py-4 hover:bg-neutral-50">
+                <button type="button" onClick={() => { setThreadPhone(c.phone); setReplyBody(''); }} key={c.key} className="w-full text-left flex items-center gap-4 px-6 py-4 hover:bg-neutral-50">
                   <div className="h-10 w-10 rounded-full bg-neutral-100 text-neutral-700 font-semibold flex items-center justify-center text-sm">
                     {(c.clientName || '#').split(' ').map((n) => n[0]).slice(0, 2).join('')}
                   </div>
@@ -109,10 +171,32 @@ export default function Messages() {
                     <p className="text-xs text-neutral-500">{formatDateTime(c.last.sent_at)}</p>
                     <Badge variant="outline" className="text-[10px] mt-1">{c.count} msg</Badge>
                   </div>
-                </Link>
+                </button>
               ))}
             </div>
           </Card>
+          {threadPhone && (
+            <Card className="mt-4 border-neutral-200">
+              <CardHeader>
+                <CardTitle className="text-base">Conversation with {openThread?.clientName || threadPhone}</CardTitle>
+                {openThread?.clientId && <Link className="text-sm text-red-700" to={`/clients/${openThread.clientId}`}>View delivery record</Link>}
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div aria-live="polite" className="max-h-96 overflow-y-auto space-y-3">
+                  {[...threadMessages].reverse().map(m => (
+                    <div key={m.direction + ':' + (m.provider_message_id || m.id)} className={'rounded-lg p-3 ' + (m.direction === 'inbound' ? 'bg-neutral-100' : 'bg-red-50')}>
+                      <p className="text-sm whitespace-pre-wrap">{m.body}</p>
+                      <p className="text-xs text-neutral-500 mt-1">{m.direction === 'inbound' ? 'Customer' : 'Team'} · {formatDateTime(m.sent_at)} · {m.status}</p>
+                    </div>
+                  ))}
+                </div>
+                <Textarea value={replyBody} onChange={event => setReplyBody(event.target.value)} placeholder="Write a reply…" rows={3}/>
+                <Button onClick={sendReply} disabled={replySending || !replyBody.trim()} className="bg-[#E11B22] hover:bg-[#B81319] text-white">
+                  <Send className="h-4 w-4 mr-2"/>{replySending ? 'Sending…' : 'Send reply'}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="bulk" className="mt-4">
