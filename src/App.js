@@ -15,6 +15,7 @@ import Deliveries from './pages/Deliveries';
 import Messages from './pages/Messages';
 import Templates from './pages/Templates';
 import MyClients from './pages/MyClients';
+import VirtualYardDeals from './pages/VirtualYardDeals';
 import Settings from './pages/Settings';
 import AdminUsers from './pages/admin/Users';
 import AdminAudit from './pages/admin/AuditLog';
@@ -45,6 +46,7 @@ function App() {
                 <Route path="/clients/:id/inspection" element={<DeliveryInspection />} />
                 <Route path="/my-clients" element={<MyClients />} />
                 <Route path="/deliveries" element={<Deliveries />} />
+                <Route path="/virtualyard-deals" element={<VirtualYardDeals />} />
                 <Route path="/messages" element={<Messages />} />
                 <Route path="/templates" element={<Templates />} />
                 <Route path="/settings" element={<Settings />} />

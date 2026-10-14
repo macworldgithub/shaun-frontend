@@ -182,4 +182,12 @@ export const contractorApi = {
     api.post(`/contractor/integrations/sync-to-client/${jobId}`).then((r) => r.data),
 };
 
+// ===== Virtual Yard Deals & Deal Payments =====
+export const virtualYardApi = {
+  listDeals: (params) => api.get('/virtualyard/deals', { params }).then((r) => r.data),
+  getDeal: (invoiceId) => api.get(`/virtualyard/deals/${invoiceId}`).then((r) => r.data),
+  getStats: () => api.get('/virtualyard/stats').then((r) => r.data),
+  sync: () => api.post('/virtualyard/sync').then((r) => r.data),
+};
+
 export default api;

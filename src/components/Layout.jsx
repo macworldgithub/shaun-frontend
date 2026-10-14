@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Truck, MessageSquare, FileText, Settings as SettingsIcon, Search, LogOut, UserCircle2, Shield, ScrollText, Share2, ChevronDown, UserCheck, UploadCloud, Menu, X, MapPin, Users2 } from 'lucide-react';
+import { LayoutDashboard, Users, Truck, MessageSquare, FileText, Settings as SettingsIcon, Search, LogOut, UserCircle2, Shield, ScrollText, Share2, ChevronDown, UserCheck, UploadCloud, Menu, X, MapPin, Users2, Receipt } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Avatar, AvatarFallback } from './ui/avatar';
@@ -17,6 +17,7 @@ const mainNav = [
   { to: '/clients', label: 'Clients', icon: Users },
   { to: '/my-clients', label: 'My Clients', icon: UserCheck },
   { to: '/deliveries', label: 'Deliveries', icon: Truck },
+  { to: '/virtualyard-deals', label: 'Deal Payments', icon: Receipt },
   { to: '/messages', label: 'Messages', icon: MessageSquare },
   { to: '/templates', label: 'SMS Templates', icon: FileText },
   { to: '/settings', label: 'Settings', icon: SettingsIcon },
