@@ -10,7 +10,7 @@ import { Label } from '../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { clientsApi, adminApi } from '../lib/api';
+import { clientsApi, staffApi } from '../lib/api';
 import { deliveryStages, contactStatuses } from '../constants';
 import { stageClass, formatDate, getReadinessDetails } from '../lib/utils';
 import { toast } from 'sonner';
@@ -58,8 +58,11 @@ export default function Clients() {
 
   useEffect(() => {
     reload();
-    adminApi.listUsers().then((u) => setAgents(u.filter((x) => x.active))).catch(() => {});
-  }, [reload]);
+    let cancelled = false;
+    setAgents([]);
+    staffApi.list(activeSite).then((u) => { if (!cancelled) setAgents(u); }).catch(() => { if (!cancelled) toast.error('Unable to load site staff'); });
+    return () => { cancelled = true; };
+  }, [reload, activeSite]);
 
   useEffect(() => {
     if (params.get('new') === '1') { setOpen(true); params.delete('new'); setParams(params); }

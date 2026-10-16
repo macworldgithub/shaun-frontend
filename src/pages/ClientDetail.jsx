@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Separator } from '../components/ui/separator';
 import { Switch } from '../components/ui/switch';
 import { Progress } from '../components/ui/progress';
-import { clientsApi, smsApi, templatesApi, adminApi, contractorApi, CRM_BASE_URL, CONTRACTOR_APP_URL } from '../lib/api';
+import { clientsApi, smsApi, templatesApi, staffApi, contractorApi, CRM_BASE_URL, CONTRACTOR_APP_URL } from '../lib/api';
 import { deliveryStages, contactStatuses, accessoryStatuses, checklistItems, registrationStatuses, handoverChecklistStatuses, tradeInStatuses, saleTypes, documentTypes, documentStatuses, activationStatuses, offerStatuses, yourWaySelections, siteLocations } from '../constants';
 import { stageClass, formatDate, formatDateTime, renderTemplate, getReadinessDetails } from '../lib/utils';
 import { toast } from 'sonner';
@@ -45,18 +45,19 @@ export default function ClientDetail() {
   const [contractorLoading, setContractorLoading] = useState(false);
 
   const reload = useCallback(async () => {
-    const [c, m, t, u, matches, cJobs] = await Promise.all([
+    const [c, m, t, matches, cJobs] = await Promise.all([
       clientsApi.get(id),
       smsApi.list({ client_id: id }),
       templatesApi.list(),
-      adminApi.listUsers().catch(() => []),
       clientsApi.offerMatches(id).catch(() => []),
       contractorApi.listJobsForClient(id).catch(() => []),
     ]);
     setClient(c);
     setMessages(m);
     setTemplates(t);
-    setAgents(u.filter((x) => x.active));
+    setAgents([]);
+    try { setAgents(await staffApi.list(c.site_location)); }
+    catch { toast.error('Unable to load site staff'); }
     setOfferMatches(matches);
     setAftermarket(c.aftermarket_notes || '');
     

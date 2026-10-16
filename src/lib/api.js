@@ -118,6 +118,10 @@ export const templatesApi = {
 };
 
 // ===== Admin =====
+export const staffApi = {
+  list: (site) => api.get('/staff', { params: { site } }).then((r) => r.data),
+};
+
 export const adminApi = {
   listUsers: () => api.get('/admin/users').then((r) => r.data),
   createUser: (data) => api.post('/admin/users', data).then((r) => r.data),
