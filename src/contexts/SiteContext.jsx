@@ -7,8 +7,9 @@ const SiteContext = createContext(null);
 export function SiteProvider({ children }) {
   const auth = useAuth();
   const lockedSite = auth?.user?.locked_site || null;
-  const siteLocations = useMemo(() => (lockedSite ? [lockedSite] : allSiteLocations), [lockedSite]);
-  const primaryDealershipSites = useMemo(() => (lockedSite ? [lockedSite] : allPrimarySites), [lockedSite]);
+  const assignedSites = auth?.user?.allowed_sites && !auth.user.all_sites ? auth.user.allowed_sites : null;
+  const siteLocations = useMemo(() => (lockedSite ? [lockedSite] : assignedSites || allSiteLocations), [lockedSite, assignedSites]);
+  const primaryDealershipSites = useMemo(() => (lockedSite ? [lockedSite] : assignedSites || allPrimarySites), [lockedSite, assignedSites]);
 
   const [savedSite, setActiveSiteState] = useState(() => {
     const saved = localStorage.getItem('active_site');
@@ -19,15 +20,16 @@ export function SiteProvider({ children }) {
     return 'All Sites';
   });
   // A site-locked user is always pinned to their own site
-  const activeSite = lockedSite || savedSite;
+  const activeSite = lockedSite || (assignedSites && !assignedSites.includes(savedSite) ? assignedSites[0] : savedSite);
 
   const setActiveSite = useCallback((site) => {
     if (lockedSite) return;
+    if (assignedSites && !assignedSites.includes(site)) return;
     setActiveSiteState(site);
     localStorage.setItem('active_site', site);
     // Dispatch custom event for any listeners
     window.dispatchEvent(new CustomEvent('site-filter-change', { detail: site }));
-  }, [lockedSite]);
+  }, [lockedSite, assignedSites]);
 
   useEffect(() => {
     if (!lockedSite) localStorage.setItem('active_site', activeSite);

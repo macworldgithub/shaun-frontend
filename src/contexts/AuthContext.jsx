@@ -26,6 +26,7 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (email, password) => {
     const data = await authApi.login(email, password);
     localStorage.setItem('dc_token', data.access_token);
+    if (data.user.allowed_sites && !data.user.all_sites) localStorage.setItem('active_site', data.user.active_site || data.user.allowed_sites[0]);
     setUser(data.user);
     return data.user;
   }, []);

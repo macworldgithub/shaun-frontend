@@ -10,6 +10,8 @@ const api = axios.create({ baseURL: API_BASE });
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('dc_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  const site = localStorage.getItem('active_site');
+  if (site) config.headers['X-Site'] = site;
   return config;
 });
 
