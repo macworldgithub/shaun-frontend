@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Inbox, AlertTriangle, MapPin, Phone } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -10,13 +10,19 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSite } from '../contexts/SiteContext';
 import { stageClass, formatDate } from '../lib/utils';
 import PaginationControls from '../components/PaginationControls';
+import { toast } from 'sonner';
 
 export default function MyClients() {
   const { user } = useAuth();
-  const { activeSite, filterClientsBySite } = useSite();
+  const { activeSite } = useSite();
   const [mine, setMine] = useState([]);
   const [unassigned, setUnassigned] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [minePage, setMinePage] = useState(1);
+  const [queuePage, setQueuePage] = useState(1);
+  const [mineTotal, setMineTotal] = useState(0);
+  const [queueTotal, setQueueTotal] = useState(0);
+  const requestVersion = useRef(0);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -24,16 +30,23 @@ export default function MyClients() {
     if (activeSite && activeSite !== 'All Sites') {
       siteParams.site_location = activeSite;
     }
-    const [m, u] = await Promise.all([
-      clientsApi.summary({ mine: true, ...siteParams }),
-      clientsApi.summary({ unassigned: true, ...siteParams }),
-    ]);
-    setMine(filterClientsBySite(m, activeSite));
-    setUnassigned(filterClientsBySite(u, activeSite));
-    setLoading(false);
-  }, [activeSite, filterClientsBySite]);
+    const version = ++requestVersion.current;
+    try {
+      const [m, u] = await Promise.all([
+        clientsApi.page({ mine: true, page: minePage, limit: 12, ...siteParams }),
+        clientsApi.page({ unassigned: true, page: queuePage, limit: 12, ...siteParams }),
+      ]);
+      if (version !== requestVersion.current) return;
+      setMine(m.items); setMineTotal(m.total);
+      setUnassigned(u.items); setQueueTotal(u.total);
+      setMinePage((current) => Math.min(current, Math.max(1, m.pages)));
+      setQueuePage((current) => Math.min(current, Math.max(1, u.pages)));
+    } catch { if (version === requestVersion.current) toast.error('Could not load your clients'); }
+    finally { if (version === requestVersion.current) setLoading(false); }
+  }, [activeSite, minePage, queuePage]);
 
-  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => { reload(); return () => { requestVersion.current += 1; }; }, [reload]);
+  useEffect(() => { setMinePage(1); setQueuePage(1); }, [activeSite]);
 
   const claim = async (id) => {
     await clientsApi.update(id, { assigned_agent_id: user.id });
@@ -58,25 +71,23 @@ export default function MyClients() {
 
       <Tabs defaultValue="mine">
         <TabsList className="bg-white border border-neutral-200">
-          <TabsTrigger value="mine">Assigned to me <Badge variant="outline" className="ml-2 text-[10px]">{mine.length}</Badge></TabsTrigger>
-          <TabsTrigger value="unassigned">Unallocated queue <Badge variant="outline" className="ml-2 text-[10px]">{unassigned.length}</Badge></TabsTrigger>
+          <TabsTrigger value="mine">Assigned to me <Badge variant="outline" className="ml-2 text-[10px]">{mineTotal}</Badge></TabsTrigger>
+          <TabsTrigger value="unassigned">Unallocated queue <Badge variant="outline" className="ml-2 text-[10px]">{queueTotal}</Badge></TabsTrigger>
         </TabsList>
 
         <TabsContent value="mine" className="mt-4">
-          <ClientGroup loading={loading} clients={mine} empty="No clients assigned to you yet."/>
+          <ClientGroup loading={loading} clients={mine} page={minePage} total={mineTotal} onPageChange={setMinePage} empty="No clients assigned to you yet."/>
         </TabsContent>
         <TabsContent value="unassigned" className="mt-4">
-          <ClientGroup loading={loading} clients={unassigned} empty="Nothing in the queue — nice work." onClaim={claim}/>
+          <ClientGroup loading={loading} clients={unassigned} page={queuePage} total={queueTotal} onPageChange={setQueuePage} empty="Nothing in the queue — nice work." onClaim={claim}/>
         </TabsContent>
       </Tabs>
     </div>
   );
 }
 
-function ClientGroup({ loading, clients, empty, onClaim }) {
-  const [page, setPage] = useState(1);
+function ClientGroup({ loading, clients, empty, onClaim, page, total, onPageChange }) {
   const pageSize = 12;
-  useEffect(() => { setPage(1); }, [clients.length]);
 
   if (loading) return <p className="text-sm text-neutral-500">Loading…</p>;
   if (clients.length === 0) return (
@@ -85,7 +96,7 @@ function ClientGroup({ loading, clients, empty, onClaim }) {
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-      {clients.slice((page - 1) * pageSize, page * pageSize).map((c) => {
+      {clients.map((c) => {
         const arrivedPending = c.arrived && c.stage !== 'Delivered';
         return (
           <Card key={c.id} className={`border ${arrivedPending ? 'border-amber-300 bg-amber-50/40' : 'border-neutral-200'} hover:shadow-md transition-shadow`}>
@@ -118,10 +129,10 @@ function ClientGroup({ loading, clients, empty, onClaim }) {
       </div>
       <PaginationControls
         page={page}
-        pageCount={Math.ceil(clients.length / pageSize)}
-        total={clients.length}
+        pageCount={Math.ceil(total / pageSize)}
+        total={total}
         pageSize={pageSize}
-        onPageChange={setPage}
+        onPageChange={onPageChange}
       />
     </>
   );

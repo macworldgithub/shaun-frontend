@@ -39,6 +39,7 @@ export const authApi = {
 
 // ===== Clients =====
 export const clientsApi = {
+  page: (params) => api.get('/clients/page', { params }).then((r) => r.data),
   list: (params) => api.get('/clients', { params }).then((r) => r.data),
   summary: (params) => api.get('/clients', { params: { ...params, summary: true } }).then((r) => r.data),
   slots: (params) => api.get('/clients/available-slots', { params }).then((r) => r.data),

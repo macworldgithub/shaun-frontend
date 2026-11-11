@@ -4,6 +4,9 @@ import { MemoryRouter, useLocation, Routes, Route } from 'react-router-dom';
 import Deliveries from './Deliveries';
 import AdminUsers from './admin/Users';
 import ClientDetail from './ClientDetail';
+import Clients from './Clients';
+import MyClients from './MyClients';
+import Messages from './Messages';
 import { BookingEditor } from '../components/BookingFields';
 import { clientsApi, adminApi, smsApi, templatesApi, staffApi, contractorApi } from '../lib/api';
 import { localDateKey } from '../lib/deliveryBooking';
@@ -13,7 +16,7 @@ import { toast } from 'sonner';
 jest.setTimeout(30000);
 
 jest.mock('../lib/api', () => ({
-  clientsApi: { summary: jest.fn(), slots: jest.fn(), update: jest.fn(), get: jest.fn(), offerMatches: jest.fn() },
+  clientsApi: { page: jest.fn(), summary: jest.fn(), slots: jest.fn(), update: jest.fn(), get: jest.fn(), offerMatches: jest.fn() },
   adminApi: { listUsers: jest.fn() }, smsApi: { list: jest.fn() }, templatesApi: { list: jest.fn() },
   staffApi: { list: jest.fn() }, contractorApi: { listJobsForClient: jest.fn() },
 }));
@@ -43,6 +46,9 @@ beforeEach(() => {
   jest.clearAllMocks();
   clientsApi.summary.mockResolvedValue([customer('1', 'confirmed'), customer('2'), customer('3'), customer('4')]);
   clientsApi.slots.mockResolvedValue({ slots: [{ time: '09:30', available: false }, { time: '10:00', available: true }] });
+  staffApi.list.mockResolvedValue([]);
+  smsApi.list.mockResolvedValue([]);
+  templatesApi.list.mockResolvedValue([]);
 });
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); });
 
@@ -144,4 +150,45 @@ test('customer details load before SMS history and late responses preserve an ed
   });
   await act(async () => { resolveMessages([]); });
   expect(notes.value).toBe('In-progress edit');
+});
+
+test('clients request one server page, keep totals and search beyond the first page', async () => {
+  clientsApi.page.mockImplementation(async (params) => {
+    const items = params.search ? [customer('52')] : Array.from({ length: 20 }, (_, i) => customer(String((params.page - 1) * 20 + i)));
+    return { items, total: params.search ? 1 : 53, ready_count: 7, pages: params.search ? 1 : 3 };
+  });
+  await render(<Clients />);
+  expect(clientsApi.summary).not.toHaveBeenCalled();
+  expect(clientsApi.page).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, limit: 20 }));
+  expect(container.textContent).toContain('53 customers');
+  await click(container.querySelector('[aria-label="Next page"]'));
+  expect(clientsApi.page).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, limit: 20 }));
+  expect(container.textContent).toContain('Customer 20');
+  const search = container.querySelector('input[placeholder*="Search"]');
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(search, 'Customer 52');
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 300)); });
+  expect(clientsApi.page).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, search: 'Customer 52' }));
+  expect(container.textContent).toContain('Customer 52');
+  expect(staffApi.list).toHaveBeenCalledTimes(1);
+});
+
+test('the assigned and unallocated queues request bounded pages with server totals', async () => {
+  clientsApi.page.mockImplementation(async (params) => ({ items: [customer(params.mine ? 'mine' : 'queue')],
+    total: params.mine ? 13 : 41, pages: params.mine ? 2 : 4 }));
+  await render(<MyClients />);
+  expect(clientsApi.summary).not.toHaveBeenCalled();
+  expect(clientsApi.page).toHaveBeenCalledWith(expect.objectContaining({ mine: true, page: 1, limit: 12 }));
+  expect(clientsApi.page).toHaveBeenCalledWith(expect.objectContaining({ unassigned: true, page: 1, limit: 12 }));
+  expect(container.textContent).toContain('13');
+  expect(container.textContent).toContain('41');
+});
+
+test('opening the inbox does not download all bulk recipients', async () => {
+  await render(<Messages />);
+  expect(smsApi.list).toHaveBeenCalled();
+  expect(clientsApi.summary).not.toHaveBeenCalled();
+  expect(templatesApi.list).not.toHaveBeenCalled();
 });

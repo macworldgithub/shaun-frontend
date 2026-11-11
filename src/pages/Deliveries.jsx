@@ -42,6 +42,7 @@ export default function Deliveries() {
       params.site_location = activeSite;
     }
     if (view === 'calendar') {
+      params.calendar = true;
       params.date_from = localDateKey(startOfMonth(cursor));
       params.date_to = localDateKey(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0));
     }

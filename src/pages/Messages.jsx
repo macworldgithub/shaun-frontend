@@ -34,13 +34,20 @@ export default function Messages() {
     if (activeSite && activeSite !== 'All Sites') {
       siteParams.site_location = activeSite;
     }
-    const [m, c, t] = await Promise.all([
-      smsApi.list({ limit: 200, ...siteParams }),
-      clientsApi.summary(siteParams),
-      templatesApi.list(),
-    ]);
-    setMessages(m); setClients(c); setTemplates(t);
+    const rows = await smsApi.list({ limit: 200, ...siteParams });
+    setMessages(rows);
   }, [activeSite]);
+
+  useEffect(() => {
+    let active = true;
+    setClients([]); setSelected({});
+    if (tab !== 'bulk') return;
+    const siteParams = activeSite === 'All Sites' ? {} : { site_location: activeSite };
+    Promise.all([clientsApi.summary(siteParams), templatesApi.list()]).then(([customers, templates]) => {
+      if (active) { setClients(customers); setTemplates(templates); }
+    }).catch(() => { if (active) toast.error('Could not load bulk-message recipients'); });
+    return () => { active = false; };
+  }, [tab, activeSite]);
 
   useEffect(() => {
     let active = true;

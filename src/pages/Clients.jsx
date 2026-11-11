@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Search, Phone, Sparkles, MapPin, AlertTriangle, CheckCircle2, MessageSquare, Building2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
@@ -31,7 +31,7 @@ const contactBadge = {
 export default function Clients() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const { activeSite, setActiveSite, siteLocations, isSiteMatch } = useSite();
+  const { activeSite, setActiveSite, siteLocations } = useSite();
   const [clients, setClients] = useState([]);
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -45,25 +45,50 @@ export default function Clients() {
   const [busy, setBusy] = useState(false);
   const [page, setPage] = useState(1);
   const pageSize = 20;
+  const [total, setTotal] = useState(0);
+  const [readyCount, setReadyCount] = useState(0);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const requestVersion = useRef(0);
+  const filterParam = params.get('filter');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 250);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   const reload = useCallback(async () => {
+    const version = ++requestVersion.current;
     setLoading(true);
-    const apiParams = {};
-    if (activeSite && activeSite !== 'All Sites') {
-      apiParams.site_location = activeSite;
+    const apiParams = { page, limit: pageSize, site_location: activeSite };
+    if (debouncedSearch.trim()) apiParams.search = debouncedSearch.trim();
+    if (stageFilter !== 'All') apiParams.stage = stageFilter;
+    if (contactFilter !== 'All') apiParams.contact_status = contactFilter;
+    if (agentFilter === 'Unassigned') apiParams.unassigned = true;
+    else if (agentFilter !== 'All') apiParams.assigned_agent_id = agentFilter;
+    if (filterParam) apiParams.exception = filterParam;
+    try {
+      const result = await clientsApi.page(apiParams);
+      if (version !== requestVersion.current) return;
+      setClients(result.items); setTotal(result.total); setReadyCount(result.ready_count);
+    } catch {
+      if (version === requestVersion.current) toast.error('Could not load clients');
+    } finally {
+      if (version === requestVersion.current) setLoading(false);
     }
-    const list = await clientsApi.summary(apiParams);
-    setClients(list);
-    setLoading(false);
-  }, [activeSite]);
+  }, [activeSite, page, debouncedSearch, stageFilter, contactFilter, agentFilter, filterParam]);
 
   useEffect(() => {
     reload();
+    return () => { requestVersion.current += 1; };
+  }, [reload]);
+
+  useEffect(() => {
     let cancelled = false;
     setAgents([]);
-    staffApi.list(activeSite).then((u) => { if (!cancelled) setAgents(u); }).catch(() => { if (!cancelled) toast.error('Unable to load site staff'); });
+    staffApi.list(activeSite).then((users) => { if (!cancelled) setAgents(users); })
+      .catch(() => { if (!cancelled) toast.error('Unable to load site staff'); });
     return () => { cancelled = true; };
-  }, [reload, activeSite]);
+  }, [activeSite]);
 
   useEffect(() => {
     if (params.get('new') === '1') {
@@ -75,52 +100,13 @@ export default function Clients() {
     }
   }, [params, setParams, activeSite]);
 
-  const filterParam = params.get('filter');
-
-  const readyCount = useMemo(() => {
-    return clients.filter((c) => getReadinessDetails(c).isReady && c.stage !== 'Delivered').length;
-  }, [clients]);
-
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    const todayIso = new Date().toISOString().slice(0, 10);
-    return clients.filter((c) => {
-      const matches = !q || c.name.toLowerCase().includes(q) || c.vehicle.toLowerCase().includes(q) || (c.rego || '').toLowerCase().includes(q) || (c.phone || '').includes(q) || (c.vin || '').toLowerCase().includes(q);
-      const stageOk = stageFilter === 'All' || c.stage === stageFilter;
-      const contactOk = contactFilter === 'All' || c.contact_status === contactFilter;
-      const agentOk = agentFilter === 'All' ||
-        (agentFilter === 'Unassigned' ? !c.assigned_agent_id : c.assigned_agent_id === agentFilter);
-      const siteOk = isSiteMatch(c.site_location, activeSite);
-
-      let exceptionOk = true;
-      if (filterParam === 'ready_for_delivery') {
-        exceptionOk = getReadinessDetails(c).isReady && c.stage !== 'Delivered';
-      } else if (filterParam === 'overdue') {
-        exceptionOk = (c.arrived && c.stage !== 'Delivered') || (c.delivery_date && c.delivery_date < todayIso && c.stage !== 'Delivered');
-      } else if (filterParam === 'trade_in') {
-        exceptionOk = ['Expiring', 'Expired', 'At risk'].includes(c.trade_in_status) || c.trade_in_flag;
-      } else if (filterParam === 'unallocated') {
-        exceptionOk = (!c.vin || !c.rego) && c.stage !== 'Delivered';
-      } else if (filterParam === 'docs') {
-        exceptionOk = ['Requested', 'Partial'].includes(c.document_completeness);
-      }
-
-      return matches && stageOk && contactOk && agentOk && siteOk && exceptionOk;
-    });
-  }, [clients, search, stageFilter, contactFilter, agentFilter, filterParam, isSiteMatch, activeSite]);
-
   const agentMap = useMemo(() => {
     const m = {};
     agents.forEach((a) => { m[a.id] = a.name; });
     return m;
   }, [agents]);
 
-  useEffect(() => { setPage(1); }, [search, stageFilter, contactFilter, agentFilter, activeSite]);
-
-  const pagedClients = useMemo(
-    () => filtered.slice((page - 1) * pageSize, page * pageSize),
-    [filtered, page],
-  );
+  useEffect(() => { setPage(1); }, [debouncedSearch, stageFilter, contactFilter, agentFilter, activeSite, filterParam]);
 
   const handleSave = async () => {
     if (!form.name || !form.phone || !form.vehicle) { toast.error('Name, phone and vehicle are required'); return; }
@@ -141,7 +127,7 @@ export default function Clients() {
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Clients</h1>
-          <p className="text-neutral-500 mt-1">{clients.length} customers in your delivery pipeline</p>
+          <p className="text-neutral-500 mt-1">{total} customers in your delivery pipeline</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => setImportOpen(true)} className="gap-1.5 border-neutral-300">
@@ -285,12 +271,12 @@ export default function Clients() {
         </div>
         <div className="divide-y divide-neutral-100">
           {loading && <div className="px-6 py-8 text-center text-neutral-500 text-sm">Loading…</div>}
-          {!loading && filtered.length === 0 && (
+          {!loading && clients.length === 0 && (
             <div className="px-6 py-12 text-center text-neutral-500 text-sm">
               No clients match your filters for {activeSite === 'All Sites' ? 'all sites' : activeSite}.
             </div>
           )}
-          {pagedClients.map((c) => {
+          {clients.map((c) => {
             const arrivedPending = c.arrived && c.stage !== 'Delivered';
             const readiness = getReadinessDetails(c);
             return (
@@ -373,8 +359,8 @@ export default function Clients() {
         </div>
         <PaginationControls
           page={page}
-          pageCount={Math.ceil(filtered.length / pageSize)}
-          total={filtered.length}
+          pageCount={Math.ceil(total / pageSize)}
+          total={total}
           pageSize={pageSize}
           onPageChange={setPage}
         />
