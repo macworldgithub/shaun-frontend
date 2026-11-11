@@ -15,6 +15,7 @@ import { clientsApi, smsApi, templatesApi, staffApi, contractorApi, CRM_BASE_URL
 import { deliveryStages, contactStatuses, accessoryStatuses, checklistItems, registrationStatuses, handoverChecklistStatuses, tradeInStatuses, saleTypes, documentTypes, documentStatuses, activationStatuses, offerStatuses, yourWaySelections, siteLocations } from '../constants';
 import { stageClass, formatDate, formatDateTime, renderTemplate, getReadinessDetails } from '../lib/utils';
 import { toast } from 'sonner';
+import { BookingEditor } from '../components/BookingFields';
 
 const SMS_SEGMENT_CHARS = 160;
 
@@ -46,20 +47,18 @@ export default function ClientDetail() {
 
   const reload = useCallback(async () => {
     const [c, m, t, matches, cJobs] = await Promise.all([
-      clientsApi.get(id),
-      smsApi.list({ client_id: id }),
-      templatesApi.list(),
+      clientsApi.get(id).then((record) => { setClient(record); setAftermarket(record.aftermarket_notes || ''); setLoading(false); return record; }),
+      smsApi.list({ client_id: id }).catch(() => []),
+      templatesApi.list().catch(() => []),
       clientsApi.offerMatches(id).catch(() => []),
       contractorApi.listJobsForClient(id).catch(() => []),
     ]);
-    setClient(c);
     setMessages(m);
     setTemplates(t);
     setAgents([]);
     try { setAgents(await staffApi.list(c.site_location)); }
     catch { toast.error('Unable to load site staff'); }
     setOfferMatches(matches);
-    setAftermarket(c.aftermarket_notes || '');
     
     // Find matching contractor job (by client_id or vin fallback)
     if (Array.isArray(cJobs) && cJobs.length > 0) {
@@ -78,7 +77,7 @@ export default function ClientDetail() {
     setLoading(false);
   }, [id]);
 
-  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => { reload().catch(() => { setLoading(false); toast.error('Could not load this client'); }); }, [reload]);
   useEffect(() => {
     let active = true;
     let pending = false;
@@ -548,9 +547,7 @@ export default function ClientDetail() {
             </div>
             {client.arrived_at && <p className="text-[10px] text-neutral-500 mt-1">Since: {formatDateTime(client.arrived_at)}</p>}
           </Box>
-          <Box label="Delivery date">
-            <Input type="date" defaultValue={client.delivery_date || ''} onBlur={(e) => e.target.value !== (client.delivery_date || '') && patch({ delivery_date: e.target.value })}/>
-          </Box>
+          <div className="md:col-span-2"><BookingEditor client={client} onSave={patch} /></div>
         </CardContent>
       </Card>
 

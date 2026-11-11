@@ -36,7 +36,7 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
-  const isAdmin = !!user && (user.role === 'super_admin' || user.role === 'admin');
+  const isAdmin = !!user && ['super_admin', 'admin', 'site_admin', 'delivery_specialist'].includes(user.role);
   const isSuper = !!user && user.role === 'super_admin';
 
   const value = useMemo(

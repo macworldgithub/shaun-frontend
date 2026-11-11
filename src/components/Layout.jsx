@@ -11,6 +11,7 @@ import { cn } from '../lib/utils';
 import { teamProfiles } from '../constants';
 import { useAuth } from '../contexts/AuthContext';
 import { useSite } from '../contexts/SiteContext';
+import { roleLabel } from '../lib/access';
 
 const mainNav = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -122,7 +123,7 @@ export default function Layout() {
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate">{user?.name}</p>
-                  <p className="text-xs text-neutral-500 truncate capitalize">{user?.role?.replace('_', ' ')} · {activeTeam}</p>
+                  <p className="text-xs text-neutral-500 truncate capitalize">{roleLabel(user?.role)} · {activeTeam}</p>
                 </div>
                 <ChevronDown className="h-4 w-4 text-neutral-400" />
               </button>

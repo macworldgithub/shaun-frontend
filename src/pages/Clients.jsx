@@ -17,8 +17,9 @@ import { toast } from 'sonner';
 import ImportFromVYDialog from '../components/ImportFromVYDialog';
 import PaginationControls from '../components/PaginationControls';
 import { useSite } from '../contexts/SiteContext';
+import BookingFields from '../components/BookingFields';
 
-const empty = { name: '', phone: '', email: '', vehicle: '', rego: '', vin: '', delivery_date: '', stage: 'Scheduled', salesperson: '', secondary_salesperson: '', delivery_consultant: '', handover_specialist: '', site_location: 'BYD Caroline Springs', notes: '', location: '', address: '' };
+const empty = { name: '', phone: '', email: '', vehicle: '', rego: '', vin: '', delivery_date: '', delivery_time: '', booking_type: 'estimated', stage: 'Scheduled', salesperson: '', secondary_salesperson: '', delivery_consultant: '', handover_specialist: '', site_location: 'BYD Caroline Springs', notes: '', location: '', address: '' };
 
 const contactBadge = {
   'Not Contacted': 'bg-rose-100 text-rose-700',
@@ -51,7 +52,7 @@ export default function Clients() {
     if (activeSite && activeSite !== 'All Sites') {
       apiParams.site_location = activeSite;
     }
-    const list = await clientsApi.list(apiParams);
+    const list = await clientsApi.summary(apiParams);
     setClients(list);
     setLoading(false);
   }, [activeSite]);
@@ -65,8 +66,14 @@ export default function Clients() {
   }, [reload, activeSite]);
 
   useEffect(() => {
-    if (params.get('new') === '1') { setOpen(true); params.delete('new'); setParams(params); }
-  }, [params, setParams]);
+    if (params.get('new') === '1') {
+      setForm({ ...empty, site_location: activeSite !== 'All Sites' ? activeSite : empty.site_location,
+        delivery_date: params.get('date') || '', delivery_time: params.get('time') || '',
+        booking_type: params.get('booking_type') === 'confirmed' ? 'confirmed' : 'estimated' });
+      setOpen(true);
+      ['new', 'date', 'time', 'booking_type'].forEach((key) => params.delete(key)); setParams(params);
+    }
+  }, [params, setParams, activeSite]);
 
   const filterParam = params.get('filter');
 
@@ -117,6 +124,7 @@ export default function Clients() {
 
   const handleSave = async () => {
     if (!form.name || !form.phone || !form.vehicle) { toast.error('Name, phone and vehicle are required'); return; }
+    if (form.booking_type === 'confirmed' && (!form.delivery_date || !form.delivery_time)) { toast.error('Choose a delivery date and time to confirm'); return; }
     setBusy(true);
     try {
       await clientsApi.create(form);
@@ -158,7 +166,7 @@ export default function Clients() {
                 </Field>
                 <Field label="Rego"><Input value={form.rego} onChange={(e) => setForm({ ...form, rego: e.target.value })} /></Field>
                 <Field label="Street Address"><Input placeholder="123 Main St, Suburb VIC" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></Field>
-                <Field label="Delivery date"><Input type="date" value={form.delivery_date || ''} onChange={(e) => setForm({ ...form, delivery_date: e.target.value })} /></Field>
+                <div className="md:col-span-2"><BookingFields value={form} onChange={setForm} /></div>
                 <Field label="Stage">
                   <Select value={form.stage} onValueChange={(v) => setForm({ ...form, stage: v })}>
                     <SelectTrigger><SelectValue/></SelectTrigger>

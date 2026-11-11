@@ -10,6 +10,9 @@ import { clientsApi } from '../lib/api';
 import { deliveryStages, teamProfiles } from '../constants';
 import { useSite } from '../contexts/SiteContext';
 import { stageClass, formatDate, getReadinessDetails } from '../lib/utils';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog';
+import { BookingEditor } from '../components/BookingFields';
+import { localDateKey, bookingCounts, bookingLabel } from '../lib/deliveryBooking';
 
 function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
 function addMonths(d, n) { return new Date(d.getFullYear(), d.getMonth() + n, 1); }
@@ -25,19 +28,44 @@ export default function Deliveries() {
   const [teamFilter, setTeamFilter] = useState(() => localStorage.getItem('active_team') || 'All Teams');
   const [onlyReady, setOnlyReady] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [selectedDay, setSelectedDay] = useState(null);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [daySlots, setDaySlots] = useState([]);
+  const [slotsError, setSlotsError] = useState('');
 
   const reload = useCallback(async () => {
     setLoading(true);
+    setError('');
     const params = {};
     if (activeSite && activeSite !== 'All Sites') {
       params.site_location = activeSite;
     }
-    const list = await clientsApi.list(params);
-    setClients(list);
-    setLoading(false);
-  }, [activeSite]);
+    if (view === 'calendar') {
+      params.date_from = localDateKey(startOfMonth(cursor));
+      params.date_to = localDateKey(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0));
+    }
+    try { const list = await clientsApi.summary(params); return list; }
+    catch { setError('Could not load the delivery schedule. Please retry.'); return []; }
+    finally { setLoading(false); }
+  }, [activeSite, cursor, view]);
 
-  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => {
+    let active = true;
+    setSelectedDay(null); setSelectedBooking(null);
+    reload().then((list) => { if (active) setClients(list); });
+    return () => { active = false; };
+  }, [reload]);
+
+  useEffect(() => {
+    let active = true;
+    setDaySlots([]); setSlotsError('');
+    if (!selectedDay || activeSite === 'All Sites') return;
+    clientsApi.slots({ day: selectedDay, site_location: activeSite }).then((result) => {
+      if (active) setDaySlots(result.slots);
+    }).catch(() => { if (active) setSlotsError('Could not load times. Reopen this day to retry.'); });
+    return () => { active = false; };
+  }, [selectedDay, activeSite, clients]);
 
   const displayClients = useMemo(() => {
     let list = filterClientsBySite(clients, activeSite);
@@ -66,7 +94,7 @@ export default function Deliveries() {
     for (let i = 0; i < startDay; i++) cells.push(null);
     for (let d = 1; d <= daysInMonth; d++) {
       const date = new Date(cursor.getFullYear(), cursor.getMonth(), d);
-      const iso = date.toISOString().slice(0, 10);
+      const iso = localDateKey(date);
       cells.push({ date, iso, deliveries: displayClients.filter((c) => c.delivery_date === iso) });
     }
     while (cells.length % 7 !== 0) cells.push(null);
@@ -130,6 +158,7 @@ export default function Deliveries() {
       </div>
 
       {loading && <p className="text-sm text-neutral-500">Loading schedule…</p>}
+      {error && <p role="alert" className="text-sm text-red-700">{error} <Button variant="outline" onClick={async () => setClients(await reload())}>Retry</Button></p>}
 
       {!loading && view === 'pipeline' && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
@@ -240,7 +269,7 @@ export default function Deliveries() {
                       <>
                         <div>
                           <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-xs font-extrabold text-neutral-800">{cell.date.getDate()}</span>
+                            <button type="button" aria-label={`Open deliveries for ${cell.iso}`} onClick={() => { setSelectedDay(cell.iso); setSelectedBooking(null); }} className="text-xs font-extrabold text-neutral-800 underline-offset-2 hover:underline">{cell.date.getDate()}</button>
                             {count > 0 && (
                               <Badge className={`text-[10px] px-1.5 py-0 h-4 border-0 font-medium ${
                                 isOverCapacity ? 'bg-red-100 text-red-800' : isNearCapacity ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
@@ -249,6 +278,10 @@ export default function Deliveries() {
                               </Badge>
                             )}
                           </div>
+                          <button type="button" onClick={() => { setSelectedDay(cell.iso); setSelectedBooking(null); }}
+                            aria-label={`Summary for ${cell.iso}`} className="w-full rounded border border-blue-200 bg-blue-50 px-1 py-1 mb-2 text-[10px] sm:text-xs font-semibold text-blue-900 hover:bg-blue-100">
+                            {bookingCounts(cell.deliveries).estimated} est / {bookingCounts(cell.deliveries).confirmed} confirmed
+                          </button>
                           <div className="space-y-1">
                             {cell.deliveries.slice(0, 3).map((d) => {
                               const readiness = getReadinessDetails(d);
@@ -271,12 +304,13 @@ export default function Deliveries() {
                                       </span>
                                     )}
                                   </div>
+                                  <div className="text-[9px] text-neutral-500 truncate">{d.delivery_time || 'Time TBC'} · {bookingLabel(d)}</div>
                                   <div className="text-[9px] text-neutral-500 truncate">{d.vehicle} {d.rego ? `· ${d.rego}` : ''}</div>
                                 </Link>
                               );
                             })}
                             {cell.deliveries.length > 3 && (
-                              <p className="text-[10px] text-neutral-500 font-semibold px-1">+ {cell.deliveries.length - 3} more handovers</p>
+                              <button type="button" onClick={() => { setSelectedDay(cell.iso); setSelectedBooking(null); }} className="text-[10px] text-blue-700 font-semibold px-1 underline">+ {cell.deliveries.length - 3} more handovers</button>
                             )}
                           </div>
                         </div>
@@ -289,6 +323,38 @@ export default function Deliveries() {
           </CardContent>
         </Card>
       )}
+      <Dialog open={!!selectedDay} onOpenChange={(open) => { if (!open) { setSelectedDay(null); setSelectedBooking(null); } }}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Deliveries for {selectedDay}</DialogTitle>
+            <DialogDescription>All customers and available delivery times for {activeSite}.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {clients.filter((c) => c.delivery_date === selectedDay).sort((a, b) => (a.delivery_time || '99:99').localeCompare(b.delivery_time || '99:99')).map((customer) =>
+              <div key={customer.id} className="flex items-center justify-between gap-3 border rounded-lg p-3">
+                <div><Link className="text-sm font-semibold underline" to={`/clients/${customer.id}`}>{customer.name}</Link>
+                  <p className="text-xs text-neutral-500">{customer.vehicle} · {bookingLabel(customer)} · {customer.delivery_time || 'Time TBC'} · {customer.site_location}</p></div>
+                <Button size="sm" variant="outline" onClick={() => setSelectedBooking(customer)}>Book time</Button>
+              </div>)}
+            {!clients.some((c) => c.delivery_date === selectedDay) && <p className="text-sm text-neutral-500">No deliveries booked for this day.</p>}
+          </div>
+          {selectedBooking && <BookingEditor client={selectedBooking} onSave={async (changes) => {
+            const updated = await clientsApi.update(selectedBooking.id, changes);
+            setSelectedBooking(updated); setClients(await reload());
+          }} />}
+          <div className="space-y-2">
+            <h3 className="font-semibold">Available time slots</h3>
+            {activeSite === 'All Sites' ? <p className="text-sm text-neutral-500">Select a site in the calendar to see its available times.</p> : <>
+              <p className="text-xs text-neutral-500">Site-local times. Choose an available slot to create a booking, or use “Book time” above for an existing customer.</p>
+              {slotsError && <p role="alert" className="text-sm text-red-700">{slotsError}</p>}
+              <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+                {daySlots.map((slot) => <Button key={slot.time} variant="outline" disabled={!slot.available} aria-label={`${slot.time} ${slot.available ? 'available' : 'booked'}`}
+                  onClick={() => navigate(`/clients?new=1&date=${selectedDay}&time=${slot.time}&booking_type=confirmed`)}>{slot.time}{!slot.available && ' · Booked'}</Button>)}
+              </div>
+            </>}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

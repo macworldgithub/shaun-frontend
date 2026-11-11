@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { activeSite, setActiveSite, siteLocations, filterClientsBySite } = useSite();
+  const { activeSite, setActiveSite, siteLocations } = useSite();
   const [stats, setStats] = useState(null);
   const [upcoming, setUpcoming] = useState([]);
   const [needsAttention, setNeedsAttention] = useState({ arrivedPending: [], notContacted: [] });
@@ -33,30 +33,20 @@ export default function Dashboard() {
         if (activeSite && activeSite !== 'All Sites') {
           apiParams.site_location = activeSite;
         }
-        const [s, list, alertList] = await Promise.all([
-          adminApi.stats(apiParams),
-          clientsApi.list(apiParams),
-          clientsApi.alerts().catch(() => [])
-        ]);
+        const s = await adminApi.stats(apiParams);
         if (cancelled) return;
         setStats(s);
-        setAlerts(alertList);
-        const filteredList = filterClientsBySite(list);
-        const upcomingList = [...filteredList]
-          .filter((c) => c.stage !== 'Delivered')
-          .sort((a, b) => (a.delivery_date || '').localeCompare(b.delivery_date || ''))
-          .slice(0, 6);
-        setUpcoming(upcomingList);
-        setNeedsAttention({
-          arrivedPending: filteredList.filter((c) => c.arrived && c.stage !== 'Delivered').slice(0, 5),
-          notContacted: filteredList.filter((c) => c.contact_status === 'Not Contacted').slice(0, 5),
-        });
+        setUpcoming(s.upcoming || []);
+        setNeedsAttention(s.needs_attention || { arrivedPending: [], notContacted: [] });
+        // Alerts no longer delay the operational dashboard's first paint.
+        clientsApi.alerts().then((rows) => { if (!cancelled) setAlerts(rows); }).catch(() => {});
+      } catch { toast.error('Could not load the dashboard');
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [activeSite, filterClientsBySite]);
+  }, [activeSite]);
 
   const refreshOffers = async () => {
     setRefreshingOffers(true);

@@ -25,8 +25,8 @@ export default function MyClients() {
       siteParams.site_location = activeSite;
     }
     const [m, u] = await Promise.all([
-      clientsApi.list({ mine: true, ...siteParams }),
-      clientsApi.list({ unassigned: true, ...siteParams }),
+      clientsApi.summary({ mine: true, ...siteParams }),
+      clientsApi.summary({ unassigned: true, ...siteParams }),
     ]);
     setMine(filterClientsBySite(m, activeSite));
     setUnassigned(filterClientsBySite(u, activeSite));

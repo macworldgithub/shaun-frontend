@@ -36,7 +36,7 @@ export default function Messages() {
     }
     const [m, c, t] = await Promise.all([
       smsApi.list({ limit: 200, ...siteParams }),
-      clientsApi.list(siteParams),
+      clientsApi.summary(siteParams),
       templatesApi.list(),
     ]);
     setMessages(m); setClients(c); setTemplates(t);

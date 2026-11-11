@@ -12,20 +12,27 @@ import { useAuth } from '../../contexts/AuthContext';
 import { formatDateTime } from '../../lib/utils';
 import { toast } from 'sonner';
 import PaginationControls from '../../components/PaginationControls';
+import { roleLabel, matchesUser } from '../../lib/access';
 
 export default function AdminUsers() {
-  const { isSuper } = useAuth();
+  const { isSuper, user } = useAuth();
+  const canManageUsers = isSuper && user?.email?.toLowerCase() === 'devs@omnisuiteai.com';
   const [users, setUsers] = useState([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ email: '', name: '', role: 'agent' });
   const [tempPw, setTempPw] = useState(null); // { user, password }
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
   const pageSize = 15;
 
-  const reload = useCallback(async () => setUsers(await adminApi.listUsers()), []);
+  const reload = useCallback(async () => {
+    try { setUsers(await adminApi.listUsers()); }
+    catch { toast.error('Could not load team members'); }
+  }, []);
   useEffect(() => { reload(); }, [reload]);
 
-  const pagedUsers = users.slice((page - 1) * pageSize, page * pageSize);
+  const filteredUsers = users.filter((member) => matchesUser(member, search));
+  const pagedUsers = filteredUsers.slice((page - 1) * pageSize, page * pageSize);
 
   const create = async () => {
     if (!form.email || !form.name) { toast.error('Email and name required'); return; }
@@ -67,7 +74,7 @@ export default function AdminUsers() {
           <h1 className="text-3xl font-bold tracking-tight">Team &amp; access</h1>
           <p className="text-neutral-500 mt-1">Manage delivery agents and admins.</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        {canManageUsers && <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button className="bg-[#E11B22] hover:bg-[#B81319] text-white"><Plus className="h-4 w-4 mr-1.5"/>Invite member</Button>
           </DialogTrigger>
@@ -82,6 +89,8 @@ export default function AdminUsers() {
                   <SelectTrigger><SelectValue/></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="agent">Delivery agent</SelectItem>
+                    <SelectItem value="delivery_specialist">Delivery Specialist (Manager)</SelectItem>
+                    <SelectItem value="delivery_consultant">Delivery Consultant (Worker)</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
                     {isSuper && <SelectItem value="super_admin">Super admin</SelectItem>}
                   </SelectContent>
@@ -94,8 +103,12 @@ export default function AdminUsers() {
               <Button onClick={create} className="bg-[#E11B22] hover:bg-[#B81319] text-white">Create user</Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+        </Dialog>}
       </div>
+
+      <Input aria-label="Search team and permissions" placeholder="Search name, email, role, site or permissions…"
+        value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} />
+      <p className="text-xs text-neutral-500">{filteredUsers.length} matching team member{filteredUsers.length === 1 ? '' : 's'}. Account changes remain managed by the platform owner.</p>
 
       <Card className="border-neutral-200">
         <div className="divide-y divide-neutral-100">
@@ -113,27 +126,31 @@ export default function AdminUsers() {
                 <p className="text-xs text-neutral-500">{u.email}</p>
               </div>
               <div className="md:col-span-2">
-                <Badge variant="outline" className="capitalize text-xs">{u.role.replace('_', ' ')}</Badge>
+                <Badge variant="outline" className="capitalize text-xs">{roleLabel(u.role)}</Badge>
+                <p className="text-xs text-neutral-500">{u.locked_site || (u.allowed_sites || []).join(', ') || u.active_site || 'All sites'}</p>
               </div>
               <div className="md:col-span-2">
                 {u.active ? <Badge className="bg-emerald-100 text-emerald-700 border-0 text-xs"><ShieldCheck className="h-3 w-3 mr-1"/>Active</Badge> : <Badge className="bg-neutral-200 text-neutral-700 border-0 text-xs"><ShieldAlert className="h-3 w-3 mr-1"/>Inactive</Badge>}
               </div>
               <div className="md:col-span-2 text-xs text-neutral-500">{u.last_login_at ? formatDateTime(u.last_login_at) : 'Never'}</div>
               <div className="md:col-span-2 flex items-center justify-end gap-1">
+                {canManageUsers && !Array.isArray(u.platform_access) && u.email?.toLowerCase() !== 'devs@omnisuiteai.com' && <>
                 <Button variant="ghost" size="sm" onClick={() => reset(u)} className="text-xs"><KeyRound className="h-3.5 w-3.5 mr-1"/>Reset</Button>
                 {u.active ? (
                   <Button variant="ghost" size="sm" onClick={() => deactivate(u)} className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50"><UserX className="h-3.5 w-3.5 mr-1"/>Disable</Button>
                 ) : (
                   <Button variant="ghost" size="sm" onClick={() => toggleActive(u)} className="text-xs">Enable</Button>
                 )}
+                </>}
               </div>
             </div>
           ))}
+          {!pagedUsers.length && <p className="p-6 text-sm text-neutral-500">No team members match your search.</p>}
         </div>
         <PaginationControls
           page={page}
-          pageCount={Math.ceil(users.length / pageSize)}
-          total={users.length}
+          pageCount={Math.ceil(filteredUsers.length / pageSize)}
+          total={filteredUsers.length}
           pageSize={pageSize}
           onPageChange={setPage}
         />

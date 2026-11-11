@@ -1,30 +1,30 @@
-import React, { useEffect } from 'react';
+import React, { lazy, Suspense } from 'react';
 import './App.css';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { SiteProvider } from './contexts/SiteContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Layout from './components/Layout';
-import Login from './pages/Login';
-import ChangePassword from './pages/ChangePassword';
-import Dashboard from './pages/Dashboard';
-import Clients from './pages/Clients';
-import ClientDetail from './pages/ClientDetail';
-import DeliveryInspection from './pages/DeliveryInspection';
-import Deliveries from './pages/Deliveries';
-import Messages from './pages/Messages';
-import Templates from './pages/Templates';
-import MyClients from './pages/MyClients';
-import VirtualYardDeals from './pages/VirtualYardDeals';
-import Settings from './pages/Settings';
-import AdminUsers from './pages/admin/Users';
-import AdminAudit from './pages/admin/AuditLog';
-import AdminShareLinks from './pages/admin/ShareLinks';
-import AdminImports from './pages/admin/Imports';
-import AdminOffers from './pages/admin/Offers';
-import AdminInboundQueue from './pages/admin/InboundQueue';
-import SharedDashboard from './pages/SharedDashboard';
-import UploadPortal from './pages/UploadPortal';
+const Login = lazy(() => import('./pages/Login'));
+const ChangePassword = lazy(() => import('./pages/ChangePassword'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Clients = lazy(() => import('./pages/Clients'));
+const ClientDetail = lazy(() => import('./pages/ClientDetail'));
+const DeliveryInspection = lazy(() => import('./pages/DeliveryInspection'));
+const Deliveries = lazy(() => import('./pages/Deliveries'));
+const Messages = lazy(() => import('./pages/Messages'));
+const Templates = lazy(() => import('./pages/Templates'));
+const MyClients = lazy(() => import('./pages/MyClients'));
+const VirtualYardDeals = lazy(() => import('./pages/VirtualYardDeals'));
+const Settings = lazy(() => import('./pages/Settings'));
+const AdminUsers = lazy(() => import('./pages/admin/Users'));
+const AdminAudit = lazy(() => import('./pages/admin/AuditLog'));
+const AdminShareLinks = lazy(() => import('./pages/admin/ShareLinks'));
+const AdminImports = lazy(() => import('./pages/admin/Imports'));
+const AdminOffers = lazy(() => import('./pages/admin/Offers'));
+const AdminInboundQueue = lazy(() => import('./pages/admin/InboundQueue'));
+const SharedDashboard = lazy(() => import('./pages/SharedDashboard'));
+const UploadPortal = lazy(() => import('./pages/UploadPortal'));
 import { Toaster } from './components/ui/sonner';
 
 function App() {
@@ -33,6 +33,7 @@ function App() {
       <BrowserRouter>
         <AuthProvider>
           <SiteProvider>
+            <Suspense fallback={<p role="status" className="p-6 text-sm text-neutral-500">Loading page…</p>}>
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/share/:token" element={<SharedDashboard />} />
@@ -59,6 +60,7 @@ function App() {
               </Route>
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
+            </Suspense>
           </SiteProvider>
         </AuthProvider>
       </BrowserRouter>

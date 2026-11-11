@@ -40,6 +40,8 @@ export const authApi = {
 // ===== Clients =====
 export const clientsApi = {
   list: (params) => api.get('/clients', { params }).then((r) => r.data),
+  summary: (params) => api.get('/clients', { params: { ...params, summary: true } }).then((r) => r.data),
+  slots: (params) => api.get('/clients/available-slots', { params }).then((r) => r.data),
   alerts: () => api.get('/clients/alerts').then((r) => r.data),
   get: (id) => api.get(`/clients/${id}`).then((r) => r.data),
   create: (data) => api.post('/clients', data).then((r) => r.data),
