@@ -39,6 +39,10 @@ export const authApi = {
 
 // ===== Clients =====
 export const clientsApi = {
+  handoffNotifications: () => api.get('/clients/handoff-notifications').then(r => r.data),
+  salesChat: (id) => api.get(`/clients/${id}/sales-chat`).then(r => r.data),
+  sendSalesChat: (id, body) => api.post(`/clients/${id}/sales-chat`, { body }).then(r => r.data),
+  readSalesChat: (id, last_message_id) => api.post(`/clients/${id}/sales-chat/read`, { last_message_id }).then(r => r.data),
   page: (params) => api.get('/clients/page', { params }).then((r) => r.data),
   list: (params) => api.get('/clients', { params }).then((r) => r.data),
   summary: (params) => api.get('/clients', { params: { ...params, summary: true } }).then((r) => r.data),

@@ -12,6 +12,7 @@ import { teamProfiles } from '../constants';
 import { useAuth } from '../contexts/AuthContext';
 import { useSite } from '../contexts/SiteContext';
 import { roleLabel } from '../lib/access';
+import { SalesHandoffNotifications } from './SalesHandoff';
 
 const mainNav = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -193,6 +194,7 @@ export default function Layout() {
             </Button>
           </div>
         </header>
+        <SalesHandoffNotifications/>
         <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 fade-in">
           <Outlet context={{ activeSite, setActiveSite, activeTeam, setActiveTeam }} />
         </main>

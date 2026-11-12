@@ -16,6 +16,7 @@ import { deliveryStages, contactStatuses, accessoryStatuses, checklistItems, reg
 import { stageClass, formatDate, formatDateTime, renderTemplate, getReadinessDetails } from '../lib/utils';
 import { toast } from 'sonner';
 import { BookingEditor } from '../components/BookingFields';
+import { SalesHandoff } from '../components/SalesHandoff';
 
 const SMS_SEGMENT_CHARS = 160;
 
@@ -922,6 +923,7 @@ export default function ClientDetail() {
             </CardContent>
           </Card>
 
+          <SalesHandoff clientId={id}/>
           <Card className="border-neutral-200">
             <CardHeader className="pb-3"><CardTitle className="text-base font-semibold">Comments &amp; handover</CardTitle></CardHeader>
             <CardContent className="space-y-3">
