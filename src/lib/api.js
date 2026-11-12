@@ -204,3 +204,13 @@ export const virtualYardApi = {
 };
 
 export default api;
+
+export const smsReplyApi = {
+  list: (site, all, offset) => api.get('/notifications/sms-replies', {params:{site,all,offset}}).then(r => r.data.data),
+  conversation: (id) => api.get(`/notifications/sms-replies/${encodeURIComponent(id)}/messages`).then(r => r.data.data),
+  read: (id, seen_message_ids) => api.post(`/notifications/sms-replies/${encodeURIComponent(id)}/read`, {seen_message_ids}).then(r => r.data),
+  send: async ({phone, site, client_id, body}) => {
+    const response = await api.post('/messages/send', {phone,site,client_id,body});
+    if (['failed','error'].includes(response.data.status)) throw new Error('SMS was not sent.');
+  },
+};

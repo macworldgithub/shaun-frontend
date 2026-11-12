@@ -13,6 +13,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSite } from '../contexts/SiteContext';
 import { roleLabel } from '../lib/access';
 import { SalesHandoffNotifications } from './SalesHandoff';
+import { SmsReplyBell } from './SmsReplyBell';
 
 const mainNav = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -173,6 +174,7 @@ export default function Layout() {
               </Select>
             </div>
 
+            <SmsReplyBell scope={activeSite}/>
             {/* Team Profile selector */}
             <div className="flex items-center gap-1 bg-neutral-100 px-2 py-1 rounded-md text-xs">
               <Users2 className="h-3.5 w-3.5 text-neutral-500" />
