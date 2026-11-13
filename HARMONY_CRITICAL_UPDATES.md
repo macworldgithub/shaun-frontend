@@ -12,3 +12,7 @@ The matching `shaun-backend` update must be deployed first.
 Run `npm test -- --watchAll=false --runInBand` and `npm run build`. The Jest configuration maps React Router 7's exported modules for CRA's older test resolver.
 
 SMS remains configured on the backend with Harmony's requested sender `+61408622037` and the existing handset-forwarding integration. Provider-confirmed outbound delivery and an actual forwarded handset reply are separate checks.
+
+## CRM client-card handoff follow-up
+
+Sales handoff chat includes **Load earlier messages** so the entire retained conversation is accessible. Earlier messages stay visible while live replies refresh, and opening another client resets the history. Deploy the matching Delivery backend first for cursor paging.

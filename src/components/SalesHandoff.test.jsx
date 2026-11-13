@@ -45,3 +45,20 @@ test('new Sold and unread chat notifications link to the actual customer profile
   expect(container.textContent).toContain('New Sold deal'); expect(container.textContent).toContain('2 unread');
   expect(container.querySelector('a').getAttribute('href')).toBe('/clients/client-1');
 });
+
+test('earlier messages remain visible after a live conversation refresh', async () => {
+  clientsApi.salesChat.mockResolvedValue({ ...data, has_more: true });
+  await render(<SalesHandoff clientId="client-1"/>);
+  clientsApi.salesChat.mockResolvedValueOnce({ ...data, has_more: false, messages: [{ ...data.messages[0], id: 'older', body: 'Original promise from Sales' }] });
+  const earlier = [...container.querySelectorAll('button')].find(button => button.textContent === 'Load earlier messages');
+  await act(async () => earlier.click());
+  expect(clientsApi.salesChat).toHaveBeenCalledWith('client-1', 'm1');
+  expect(container.textContent).toContain('Original promise from Sales');
+  expect(container.textContent).toContain('Can you confirm arrival?');
+  clientsApi.salesChat.mockResolvedValueOnce({ ...data, messages: [{ ...data.messages[0], id: 'm2', body: 'A new live reply' }] });
+  await act(async () => window.dispatchEvent(new Event('focus')));
+  expect(container.textContent).toContain('Original promise from Sales');
+  expect(container.textContent).toContain('Can you confirm arrival?');
+  expect(container.textContent).toContain('A new live reply');
+  expect(container.querySelectorAll('article')).toHaveLength(3);
+});

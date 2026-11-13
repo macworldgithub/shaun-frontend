@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { clientsApi } from '../lib/api';
 import { useSite } from '../contexts/SiteContext';
@@ -10,9 +10,13 @@ export function SalesHandoff({ clientId }) {
   const [error, setError] = useState('');
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
+  const [olderMessages, setOlderMessages] = useState([]);
+  const [olderHasMore, setOlderHasMore] = useState(null);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const activeClient = useRef(clientId);
   useEffect(() => {
-    let active = true, pending = false;
-    setData(null); setBody(''); setError('');
+    let active = true, pending = false; activeClient.current = clientId;
+    setData(null); setBody(''); setError(''); setOlderMessages([]); setOlderHasMore(null); setLoadingOlder(false);
     const refresh = async () => {
       if (pending || document.visibilityState !== 'visible') return;
       pending = true;
@@ -20,6 +24,7 @@ export function SalesHandoff({ clientId }) {
         const response = await clientsApi.salesChat(clientId);
         if (active) {
           setData(response); setError('');
+          setOlderMessages(previous => previous.length ? [...new Map([...previous, ...response.messages].map(message => [message.id, message])).values()] : previous);
           if (response.status === 'new' || response.unread > 0) await clientsApi.readSalesChat(clientId, response.last_sales_message_id);
         }
       } catch (error) { if (active) setError(error?.response?.data?.detail || 'Sales handoff is unavailable.'); }
@@ -29,6 +34,17 @@ export function SalesHandoff({ clientId }) {
     window.addEventListener('focus', refresh);
     return () => { active = false; window.clearInterval(timer); window.removeEventListener('focus', refresh); };
   }, [clientId]);
+  const messages = [...new Map([...olderMessages, ...(data?.messages || [])].map(message => [message.id, message])).values()];
+  async function loadEarlier() {
+    if (loadingOlder || !messages.length) return;
+    setLoadingOlder(true); setError('');
+    try {
+      const response = await clientsApi.salesChat(clientId, messages[0].id);
+      if (activeClient.current !== clientId) return;
+      setOlderMessages(previous => [...new Map([...response.messages, ...previous, ...messages].map(message => [message.id, message])).values()]); setOlderHasMore(response.has_more);
+    } catch { if (activeClient.current === clientId) setError('Earlier messages are unavailable. Please try again.'); }
+    finally { if (activeClient.current === clientId) setLoadingOlder(false); }
+  }
   async function send(event) {
     event.preventDefault(); if (busy || !body.trim()) return;
     setBusy(true); setError('');
@@ -45,7 +61,8 @@ export function SalesHandoff({ clientId }) {
     {!data && !error && <p className="text-sm text-neutral-500">Loading handoff…</p>}
     {data?.handoff ? <><span className="inline-block rounded-full bg-emerald-50 px-3 py-1 text-xs text-emerald-800">{data.status === 'new' ? 'New Sold handoff' : 'Handoff received'}</span><dl className="grid gap-4 sm:grid-cols-2">{Object.entries(labels).map(([key,label]) => <div key={key}><dt className="text-xs font-semibold text-neutral-500">{label}</dt><dd className="mt-1 whitespace-pre-wrap text-sm">{data.handoff[key] || 'Not specified'}</dd></div>)}</dl><p className="text-xs text-neutral-500">Shared by {data.handoff.submitted_by || 'Sales'}{data.handoff.submitted_at ? ` · ${new Date(data.handoff.submitted_at).toLocaleString('en-AU')}` : ''}</p></> : data && <p className="text-sm text-neutral-500">No structured Sales handoff is recorded for this client.</p>}
     <div className="border-t pt-4"><h3 className="text-sm font-semibold">Sales ↔ Delivery chat</h3><p className="mt-1 text-xs text-neutral-500">Internal team messages stay on this customer profile. They are not sent by SMS.</p>
-      <div role="log" aria-label="Sales and Delivery messages" aria-live="polite" className="my-4 max-h-80 space-y-3 overflow-y-auto">{data && !data.messages.length && <p className="py-4 text-center text-sm text-neutral-500">No team messages yet.</p>}{(data?.messages || []).map(message => <article key={message.id} className={`rounded-lg p-3 ${message.team === 'delivery' ? 'bg-neutral-50' : 'bg-sky-50'}`}><div className="flex flex-wrap justify-between gap-2 text-xs text-neutral-500"><strong className="text-neutral-800">{message.author_name} · {message.team === 'sales' ? 'Sales' : 'Delivery'}</strong><time dateTime={message.created_at}>{new Date(message.created_at).toLocaleString('en-AU')}</time></div><p className="mt-2 whitespace-pre-wrap text-sm">{message.body}</p></article>)}</div>
+      {(olderHasMore ?? data?.has_more) && <button type="button" disabled={loadingOlder} onClick={loadEarlier} className="mt-3 rounded-lg border px-3 py-2 text-sm disabled:opacity-50">{loadingOlder ? 'Loading…' : 'Load earlier messages'}</button>}
+      <div role="log" aria-label="Sales and Delivery messages" aria-live="polite" className="my-4 max-h-80 space-y-3 overflow-y-auto">{data && !messages.length && <p className="py-4 text-center text-sm text-neutral-500">No team messages yet.</p>}{messages.map(message => <article key={message.id} className={`rounded-lg p-3 ${message.team === 'delivery' ? 'bg-neutral-50' : 'bg-sky-50'}`}><div className="flex flex-wrap justify-between gap-2 text-xs text-neutral-500"><strong className="text-neutral-800">{message.author_name} · {message.team === 'sales' ? 'Sales' : 'Delivery'}</strong><time dateTime={message.created_at}>{new Date(message.created_at).toLocaleString('en-AU')}</time></div><p className="mt-2 whitespace-pre-wrap text-sm">{message.body}</p></article>)}</div>
       {data?.linked_to_sales === false && <p className="mb-3 text-sm text-amber-800">Link this client to a CRM customer before messaging Sales.</p>}<form onSubmit={send} className="space-y-2"><label htmlFor="sales-team-message" className="sr-only">Message Sales</label><textarea id="sales-team-message" required maxLength={2000} rows={2} value={body} onChange={event => setBody(event.target.value)} placeholder="Ask Sales a question…" className="w-full rounded-lg border border-neutral-300 p-3 text-sm"/><button disabled={busy || !body.trim() || !data || data.linked_to_sales === false} className="rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white disabled:opacity-50">{busy ? 'Sending…' : 'Send to Sales'}</button></form>
     </div>
   </section>;
