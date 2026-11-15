@@ -19,6 +19,7 @@ jest.mock('../lib/api', () => ({
   clientsApi: { page: jest.fn(), summary: jest.fn(), slots: jest.fn(), update: jest.fn(), get: jest.fn(), offerMatches: jest.fn() },
   adminApi: { listUsers: jest.fn() }, smsApi: { list: jest.fn() }, templatesApi: { list: jest.fn() },
   staffApi: { list: jest.fn() }, contractorApi: { listJobsForClient: jest.fn() },
+  postDeliveryApi: { client: jest.fn().mockResolvedValue({ eligible: true, enrolled: false, jobs: [] }) },
 }));
 jest.mock('sonner', () => ({ toast: { error: jest.fn(), success: jest.fn() } }));
 jest.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ user: { email: 'fixture@example.com' }, isSuper: false }) }));

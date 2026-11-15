@@ -17,6 +17,7 @@ import { stageClass, formatDate, formatDateTime, renderTemplate, getReadinessDet
 import { toast } from 'sonner';
 import { BookingEditor } from '../components/BookingFields';
 import { SalesHandoff } from '../components/SalesHandoff';
+import { PostDeliveryClient } from '../components/PostDelivery';
 
 const SMS_SEGMENT_CHARS = 160;
 
@@ -388,7 +389,7 @@ export default function ClientDetail() {
               <FileCheck className="h-4 w-4" /> Digital Delivery Inspection
             </Button>
           </Link>
-          <Select value={client.stage} onValueChange={(v) => patch({ stage: v })}>
+          <Select value={client.stage} onValueChange={(v) => patch({ stage: v, ...(v === 'Delivered' ? { customer_type: client.customer_type || 'Private' } : {}) })}>
             <SelectTrigger className="w-52 bg-white"><SelectValue/></SelectTrigger>
             <SelectContent>{deliveryStages.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
           </Select>
@@ -522,6 +523,7 @@ export default function ClientDetail() {
         </CardContent>
       </Card>
 
+      <PostDeliveryClient client={client} onChange={patch}/>
       {/* Status row */}
       <Card className="border-neutral-200">
         <CardContent className="p-5 grid grid-cols-1 md:grid-cols-4 gap-4">

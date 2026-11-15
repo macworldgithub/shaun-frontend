@@ -19,7 +19,7 @@ import PaginationControls from '../components/PaginationControls';
 import { useSite } from '../contexts/SiteContext';
 import BookingFields from '../components/BookingFields';
 
-const empty = { name: '', phone: '', email: '', vehicle: '', rego: '', vin: '', delivery_date: '', delivery_time: '', booking_type: 'estimated', stage: 'Scheduled', salesperson: '', secondary_salesperson: '', delivery_consultant: '', handover_specialist: '', site_location: 'BYD Caroline Springs', notes: '', location: '', address: '' };
+const empty = { name: '', phone: '', email: '', vehicle: '', rego: '', vin: '', customer_type: 'Private', delivery_date: '', delivery_time: '', booking_type: 'estimated', stage: 'Scheduled', salesperson: '', secondary_salesperson: '', delivery_consultant: '', handover_specialist: '', site_location: 'BYD Caroline Springs', notes: '', location: '', address: '' };
 
 const contactBadge = {
   'Not Contacted': 'bg-rose-100 text-rose-700',
@@ -144,6 +144,7 @@ export default function Clients() {
                 <Field label="Mobile (E.164)"><Input placeholder="+61412345678" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
                 <Field label="Email"><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
                 <Field label="Vehicle"><Input placeholder="BYD Atto 3" value={form.vehicle} onChange={(e) => setForm({ ...form, vehicle: e.target.value })} /></Field>
+                <Field label="Customer type"><select aria-label="Customer type" value={form.customer_type} onChange={event => setForm({ ...form, customer_type: event.target.value })} className="h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm"><option>Private</option><option>Business</option></select></Field>
                 <Field label="Dealership Site Location">
                   <Select value={form.site_location || (activeSite !== 'All Sites' ? activeSite : 'BYD Caroline Springs')} onValueChange={(v) => setForm({ ...form, site_location: v })}>
                     <SelectTrigger><SelectValue/></SelectTrigger>

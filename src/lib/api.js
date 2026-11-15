@@ -118,6 +118,12 @@ export const smsApi = {
   bulk: (data) => api.post('/messages/bulk', data).then((r) => r.data),
 };
 
+export const postDeliveryApi = {
+  settings: () => api.get('/post-delivery/settings').then(r => r.data),
+  saveSettings: data => api.put('/post-delivery/settings', data).then(r => r.data),
+  client: id => api.get(`/post-delivery/clients/${encodeURIComponent(id)}`).then(r => r.data),
+};
+
 // ===== Templates =====
 export const templatesApi = {
   list: () => api.get('/templates').then((r) => r.data),

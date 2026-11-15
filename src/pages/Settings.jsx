@@ -10,6 +10,7 @@ import { CheckCircle2 } from 'lucide-react';
 import { adminApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useSite } from '../contexts/SiteContext';
+import { PostDeliverySettings } from '../components/PostDelivery';
 
 export default function Settings() {
   const { user } = useAuth();
@@ -54,11 +55,11 @@ export default function Settings() {
           <Separator/>
           <SettingRow title="Auto welcome SMS" desc="Send welcome message when a new client is added" defaultChecked/>
           <SettingRow title="Day-before reminder" desc="Send reminder SMS 24h before delivery" defaultChecked/>
-          <SettingRow title="Post-delivery follow-up" desc="Send follow-up 7 days after delivery"/>
           <SettingRow title="Notify team on inbound replies" desc="Email the assigned salesperson when a customer replies" defaultChecked/>
         </CardContent>
       </Card>
 
+      <PostDeliverySettings/>
       {team.length > 0 && (
         <Card className="border-neutral-200">
           <CardHeader><CardTitle className="text-base font-semibold">Team</CardTitle></CardHeader>
